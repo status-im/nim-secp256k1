@@ -5,3 +5,4 @@ git submodule update
 ./gen.sh
 
 # Don't forget to commit the changes
+```
