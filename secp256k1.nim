@@ -1,21 +1,18 @@
+import strutils
+from os import DirSep
+
+const wrapperPath = currentSourcePath.rsplit(DirSep, 1)[0] & "/secp256k1_wrapper"
+{.passC: "-I" & wrapperPath .}
+{.passC: "-I" & wrapperPath & "/secp256k1".}
+{.passC: "-DHAVE_CONFIG_H".}
+
+const secpSrc = wrapperPath & "/secp256k1/src/secp256k1.c"
+
+{.compile: secpSrc.}
+
 {.deadCodeElim: on.}
 
-when defined(windows):
-  const Lib = "secp256k1.dll"
-elif defined(macosx):
-  const Lib = "libsecp256k1(|.0).dylib"
-else:
-  const Lib = "libsecp256k1.so(|.0)"
-
-when defined(static_secp256k1):
-  {.pragma: secp, importc, cdecl.}
-else:
-  {.pragma: secp, dynlib: Lib, importc, cdecl.}
-
-{.emit: """
-  typedef struct secp256k1_context_struct secp256k1_context;
-  typedef struct secp256k1_scratch_space_struct secp256k1_scratch_space;
-""".}
+{.pragma: secp, importc, cdecl.}
 
 type
   secp256k1_pubkey* = object
@@ -28,8 +25,8 @@ type
                                     key32: ptr cuchar; algo16: ptr cuchar; data: pointer;
                                     attempt: cuint): cint
 
-  secp256k1_context* = object {.importc: "secp256k1_context".}
-  secp256k1_scratch_space* = object {.importc: "secp256k1_scratch_space".}
+  secp256k1_context* = object
+  secp256k1_scratch_space* = object
 
 const
   SECP256K1_FLAGS_TYPE_MASK* = ((1 shl 8) - 1)
