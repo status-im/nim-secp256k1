@@ -4,6 +4,7 @@ from os import DirSep
 const wrapperPath = currentSourcePath.rsplit(DirSep, 1)[0] & "/secp256k1_wrapper"
 {.passC: "-I" & wrapperPath .}
 {.passC: "-I" & wrapperPath & "/secp256k1".}
+{.passC: "-I" & wrapperPath & "/secp256k1/src".}
 {.passC: "-DHAVE_CONFIG_H".}
 
 const secpSrc = wrapperPath & "/secp256k1/src/secp256k1.c"
