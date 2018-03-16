@@ -253,3 +253,16 @@ proc secp256k1_ecdsa_recoverable_signature_serialize_compact*(
   ##        recid:    a pointer to an integer to hold the recovery id (can be NULL).
   ##  In:   sig:      a pointer to an initialized signature object (cannot be NULL)
   ##
+
+proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
+                     pubkey: ptr secp256k1_pubkey;
+                     input32: ptr cuchar): cint {.secp.}
+  ## Compute an EC Diffie-Hellman secret in constant time
+  ## Returns: 1: exponentiation was successful
+  ##          0: scalar was invalid (zero or overflow)
+  ## Args:    ctx:        pointer to a context object (cannot be NULL)
+  ## Out:     result:     a 32-byte array which will be populated by an ECDH
+  ##                      secret computed from the point and scalar
+  ## In:      pubkey:     a pointer to a secp256k1_pubkey containing an
+  ##                      initialized public key
+  ##          privkey:    a 32-byte scalar with which to multiply the point
