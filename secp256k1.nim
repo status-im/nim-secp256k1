@@ -24,7 +24,8 @@ type
 
   secp256k1_nonce_function* = proc (nonce32: ptr cuchar; msg32: ptr cuchar;
                                     key32: ptr cuchar; algo16: ptr cuchar; data: pointer;
-                                    attempt: cuint): cint
+                                    attempt: cuint): cint {.stdcall.}
+  secp256k1_error_function* = proc (message: cstring; data: pointer) {.stdcall.}
 
   secp256k1_context* = object
   secp256k1_scratch_space* = object
@@ -69,12 +70,12 @@ proc secp256k1_context_destroy*(
 
 proc secp256k1_context_set_illegal_callback*(
   ctx: ptr secp256k1_context;
-  fun: proc (message: cstring; data: pointer);
+  fun: secp256k1_error_function;
   data: pointer) {.secp.}
 
 proc secp256k1_context_set_error_callback*(
   ctx: ptr secp256k1_context;
-  fun: proc (message: cstring; data: pointer);
+  fun: secp256k1_error_function;
   data: pointer) {.secp.}
 
 proc secp256k1_scratch_space_create*(
