@@ -255,6 +255,11 @@ proc secp256k1_ecdsa_recoverable_signature_serialize_compact*(
   ##  In:   sig:      a pointer to an initialized signature object (cannot be NULL)
   ##
 
+proc secp256k1_ecdsa_recoverable_signature_parse_compact*(
+  ctx: ptr secp256k1_context;
+  sig: ptr secp256k1_ecdsa_recoverable_signature;
+  input64: ptr cuchar, recid: cint): cint {.secp.}
+
 proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
                      pubkey: ptr secp256k1_pubkey;
                      input32: ptr cuchar): cint {.secp.}
