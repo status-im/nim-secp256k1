@@ -41,6 +41,7 @@ build_script:
   - nimble.exe refresh
 
 test_script:
+  - git submodule update --init --recursive
   - nimble.exe test
 
 deploy: off
