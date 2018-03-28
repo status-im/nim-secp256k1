@@ -1,4 +1,4 @@
-import secp256k1, unittest
+import ../secp256k1, unittest
 
 suite "Test1":
   test "Context should be created and destroyed":
