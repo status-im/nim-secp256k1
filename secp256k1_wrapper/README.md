@@ -9,7 +9,7 @@ git submodule update
 
 ## Arch specific defines
 
-You can get a list of arch specific defines via `clang -dM -E -x c /dev/null`
+You can get a list of arch specific defines with clang via `clang -dM -E -x c /dev/null`
 
 On a Mac with 10.13.3 (High Sierra) this gives
 
