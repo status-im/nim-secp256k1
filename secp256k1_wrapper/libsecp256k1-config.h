@@ -60,7 +60,11 @@
 #define HAVE_UNISTD_H 1
 
 /* Define to 1 if the system has the type `__int128'. */
-#define HAVE___INT128 1
+#if __SIZEOF_INT128__ == 16
+    #define HAVE___INT128 1
+#else
+    #undef HAVE___INT128
+#endif
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
