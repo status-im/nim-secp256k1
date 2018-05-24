@@ -3,4 +3,4 @@
 [![Windows build status (Appveyor)](https://img.shields.io/appveyor/ci/jarradh/nim-secp256k1/master.svg?label=Windows "Windows build status (Appveyor)")](https://ci.appveyor.com/project/jarradh/nim-secp256k1)
 [![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A wrapper for libsecp256k1
+This library is a wrapper for Bitcoin's https://github.com/bitcoin-core/secp256k1 library.
