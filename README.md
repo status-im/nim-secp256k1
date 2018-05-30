@@ -8,4 +8,4 @@
 This library is a wrapper for Bitcoin's [secp256k1](https://github.com/bitcoin-core/secp256k1) library.
 
 # Installation
-nimble install https://github.com/status-im/nim-secp256k1/blob/master/secp256k1.nimble
+$ nimble install secp256k1
