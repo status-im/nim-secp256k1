@@ -9,9 +9,16 @@ This library is a wrapper for Bitcoin's [secp256k1](https://github.com/bitcoin-c
 
 # Installation
 
+Add to your `.nimble` file:
+```
+requires "secp256k1"
+```
+
+# Build and test
+
 ```
 # Upstream secp256k1 c library is tracked with a submodule
 git submodule update --init
-nimble install secp256k1
+nimble test
 ```
 
