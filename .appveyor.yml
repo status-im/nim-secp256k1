@@ -79,8 +79,9 @@ install:
 
 build_script:
   - cd C:\projects\%APPVEYOR_PROJECT_SLUG%
-  - nimble install -y
+  - nimble install -dy
 test_script:
+  - git submodule update --init --recursive # On Linux nimble install does submodules though.
   - nimble test
 
 deploy: off
