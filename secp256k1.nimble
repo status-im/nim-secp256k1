@@ -13,6 +13,7 @@ proc test(name: string, lang: string = "c") =
   if not dirExists "build":
     mkDir "build"
   --run
+  --threads:on
   switch("out", ("./build/" & name))
   setCommand lang, "tests/" & name & ".nim"
 
