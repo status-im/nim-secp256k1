@@ -13,6 +13,9 @@ const
 {.passC: "-I" & quoteShell(srcPath).}
 {.passC: "-DHAVE_CONFIG_H".}
 
+when defined(gcc) or defined(clang):
+  {.passC: "-DHAVE_BUILTIN_EXPECT"}
+
 {.compile: secpSrc.}
 
 {.deadCodeElim: on.}
