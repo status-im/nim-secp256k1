@@ -1,13 +1,17 @@
 import strutils
-from os import DirSep
+from os import DirSep, quoteShell
 
-const wrapperPath = currentSourcePath.rsplit(DirSep, 1)[0] & "/secp256k1_wrapper"
-{.passC: "-I" & wrapperPath .}
-{.passC: "-I" & wrapperPath & "/secp256k1".}
-{.passC: "-I" & wrapperPath & "/secp256k1/src".}
+const
+  wrapperPath = currentSourcePath.rsplit(DirSep, 1)[0] & DirSep &
+                "secp256k1_wrapper"
+  internalPath = wrapperPath & DirSep & "secp256k1"
+  srcPath = internalPath & DirSep & "src"
+  secpSrc = srcPath & DirSep & "secp256k1.c"
+
+{.passC: "-I" & quoteShell(wrapperPath).}
+{.passC: "-I" & quoteShell(internalPath).}
+{.passC: "-I" & quoteShell(srcPath).}
 {.passC: "-DHAVE_CONFIG_H".}
-
-const secpSrc = wrapperPath & "/secp256k1/src/secp256k1.c"
 
 {.compile: secpSrc.}
 
