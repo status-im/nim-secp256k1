@@ -18,9 +18,7 @@ when defined(gcc) or defined(clang):
 
 {.compile: secpSrc.}
 
-{.deadCodeElim: on.}
-
-{.pragma: secp, importc, cdecl.}
+{.pragma: secp, importc, cdecl, raises: [].}
 
 type
   secp256k1_pubkey* = object
@@ -31,8 +29,12 @@ type
 
   secp256k1_nonce_function* = proc (nonce32: ptr cuchar; msg32: ptr cuchar;
                                     key32: ptr cuchar; algo16: ptr cuchar; data: pointer;
-                                    attempt: cuint): cint {.cdecl.}
-  secp256k1_error_function* = proc (message: cstring; data: pointer) {.cdecl.}
+                                    attempt: cuint): cint {.cdecl, raises: [].}
+  secp256k1_error_function* = proc (message: cstring; data: pointer) {.cdecl, raises: [].}
+
+  secp256k1_ecdh_hash_function* = proc (output: ptr cuchar,
+                                        x32, y32: ptr cuchar,
+                                        data: pointer) {.cdecl, raises: [].}
 
   secp256k1_context* = object
   secp256k1_scratch_space* = object
@@ -45,6 +47,7 @@ const
   ## * The higher bits contain the actual data. Do not use directly.
   SECP256K1_FLAGS_BIT_CONTEXT_VERIFY* = (1 shl 8)
   SECP256K1_FLAGS_BIT_CONTEXT_SIGN* = (1 shl 9)
+  SECP256K1_FLAGS_BIT_CONTEXT_DECLASSIFY* = (1 shl 10)
   SECP256K1_FLAGS_BIT_COMPRESSION* = (1 shl 8)
 
   ## * Flags to pass to secp256k1_context_create.
@@ -52,6 +55,9 @@ const
     SECP256K1_FLAGS_TYPE_CONTEXT or SECP256K1_FLAGS_BIT_CONTEXT_VERIFY)
   SECP256K1_CONTEXT_SIGN* = (
     SECP256K1_FLAGS_TYPE_CONTEXT or SECP256K1_FLAGS_BIT_CONTEXT_SIGN)
+  SECP256K1_CONTEXT_DECLASSIFY* = (
+    SECP256K1_FLAGS_TYPE_CONTEXT or SECP256K1_FLAGS_BIT_CONTEXT_DECLASSIFY
+  )
   SECP256K1_CONTEXT_NONE* = (SECP256K1_FLAGS_TYPE_CONTEXT)
 
   ## * Flag to pass to secp256k1_ec_pubkey_serialize and secp256k1_ec_privkey_export.
@@ -65,6 +71,15 @@ const
   SECP256K1_TAG_PUBKEY_UNCOMPRESSED* = 0x00000004
   SECP256K1_TAG_PUBKEY_HYBRID_EVEN* = 0x00000006
   SECP256K1_TAG_PUBKEY_HYBRID_ODD* = 0x00000007
+
+var secp256k1_context_no_precomp_imp {.
+  importc: "secp256k1_context_no_precomp".}: ptr secp256k1_context
+let secp256k1_context_no_precomp* = secp256k1_context_no_precomp_imp
+
+var secp256k1_ecdh_hash_function_default_imp {.
+  importc: "secp256k1_ecdh_hash_function_default".}: secp256k1_ecdh_hash_function
+let secp256k1_ecdh_hash_function_default* =
+  secp256k1_ecdh_hash_function_default_imp
 
 proc secp256k1_context_create*(
   flags: cuint): ptr secp256k1_context {.secp.}
@@ -87,22 +102,22 @@ proc secp256k1_context_set_error_callback*(
 
 proc secp256k1_scratch_space_create*(
   ctx: ptr secp256k1_context;
-  init_size: csize;
-  max_size: csize): ptr secp256k1_scratch_space {.secp.}
+  size: csize_t): ptr secp256k1_scratch_space {.secp.}
 
 proc secp256k1_scratch_space_destroy*(
+  ctx: ptr secp256k1_context;
   scratch: ptr secp256k1_scratch_space) {.secp.}
 
 proc secp256k1_ec_pubkey_parse*(
   ctx: ptr secp256k1_context;
   pubkey: ptr secp256k1_pubkey;
   input: ptr cuchar;
-  inputlen: csize): cint {.secp.}
+  inputlen: csize_t): cint {.secp.}
 
 proc secp256k1_ec_pubkey_serialize*(
   ctx: ptr secp256k1_context;
   output: ptr cuchar;
-  outputlen: ptr csize;
+  outputlen: ptr csize_t;
   pubkey: ptr secp256k1_pubkey;
   flags: cuint): cint {.secp.}
 
@@ -115,12 +130,12 @@ proc secp256k1_ecdsa_signature_parse_der*(
   ctx: ptr secp256k1_context;
   sig: ptr secp256k1_ecdsa_signature;
   input: ptr cuchar;
-  inputlen: csize): cint {.secp.}
+  inputlen: csize_t): cint {.secp.}
 
 proc secp256k1_ecdsa_signature_serialize_der*(
   ctx: ptr secp256k1_context;
   output: ptr cuchar;
-  outputlen: ptr csize;
+  outputlen: ptr csize_t;
   sig: ptr secp256k1_ecdsa_signature): cint {.secp.}
 
 proc secp256k1_ecdsa_signature_serialize_compact*(
@@ -192,7 +207,7 @@ proc secp256k1_ec_pubkey_combine*(
   ctx: ptr secp256k1_context;
   output: ptr secp256k1_pubkey;
   ins: ptr ptr secp256k1_pubkey;
-  n: csize): cint {.secp.}
+  n: csize_t): cint {.secp.}
 
 var secp256k1_nonce_function_rfc6979*: secp256k1_nonce_function
 var secp256k1_nonce_function_default*: secp256k1_nonce_function
@@ -269,7 +284,10 @@ proc secp256k1_ecdsa_recoverable_signature_parse_compact*(
 
 proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
                      pubkey: ptr secp256k1_pubkey;
-                     input32: ptr cuchar): cint {.secp.}
+                     privkey: ptr cuchar,
+                     hashfp: secp256k1_ecdh_hash_function,
+                     data: pointer
+                     ): cint {.secp.}
   ## Compute an EC Diffie-Hellman secret in constant time
   ## Returns: 1: exponentiation was successful
   ##          0: scalar was invalid (zero or overflow)
@@ -280,6 +298,13 @@ proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
   ##                      initialized public key
   ##          privkey:    a 32-byte scalar with which to multiply the point
   ##
+
+template secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
+                     pubkey: ptr secp256k1_pubkey;
+                     privkey: ptr cuchar
+                     ): cint =
+  secp256k1_ecdh(ctx, output32, pubkey, privkey,
+    secp256k1_ecdh_hash_function_default, nil)
 
 proc secp256k1_ecdh_raw*(ctx: ptr secp256k1_context; output32: ptr cuchar;
                          pubkey: ptr secp256k1_pubkey;
