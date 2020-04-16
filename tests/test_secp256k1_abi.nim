@@ -1,6 +1,8 @@
-import ../secp256k1, unittest
+import ../secp256k1_abi, unittest
 
-suite "Test1":
+{.used.}
+
+suite "ABI tests":
   test "Context should be created and destroyed":
     let ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN or SECP256K1_CONTEXT_VERIFY)
     check ctx != nil
