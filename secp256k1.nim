@@ -1,322 +1,440 @@
-import strutils
-from os import DirSep, quoteShell
+## Copyright (c) 2018-2020 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+##
+
+{.push raises: [Defect].}
+
+import
+  strformat,
+  stew/[byteutils, objects, results],
+  nimcrypto/[hash, sysrand],
+  ./secp256k1_abi
+
+from nimcrypto/utils import burnMem
+
+export results
+
+# Implementation notes
+#
+# The goal of this wrapper is to create a thin layer on top of the API presented
+# in secp256k1_abi, exploiting some of its regulatities to make it slightly more
+# convenient to use from Nim
+#
+# * We hide raw pointer accesses and lengths behind nim types
+# * We guarantee certain parameter properties, like not null and proper length,
+#   on the Nim side - in turn, we can rely on certain errors never happening in
+#   libsecp256k1, so we can skip checking for them
+# * Functions like "fromRaw/toRaw" are balanced and will always rountrip
+# * Functions like `fromRaw` are not called `init` because they may fail
+# * No CatchableErrors
 
 const
-  wrapperPath = currentSourcePath.rsplit(DirSep, 1)[0] & DirSep &
-                "secp256k1_wrapper"
-  internalPath = wrapperPath & DirSep & "secp256k1"
-  srcPath = internalPath & DirSep & "src"
-  secpSrc = srcPath & DirSep & "secp256k1.c"
+  SkRawSecretKeySize* = 32 # 256 div 8
+    ## Size of private key in octets (bytes)
+  SkRawSignatureSize* = 64
+    ## Compact serialized non-recoverable signature
+  SkDerSignatureMaxSize* = 72
+    ## Max bytes in DER encoding
 
-{.passC: "-I" & quoteShell(wrapperPath).}
-{.passC: "-I" & quoteShell(internalPath).}
-{.passC: "-I" & quoteShell(srcPath).}
-{.passC: "-DHAVE_CONFIG_H".}
+  SkRawRecoverableSignatureSize* = 65
+    ## Size of recoverable signature in octets (bytes)
 
-when defined(gcc) or defined(clang):
-  {.passC: "-DHAVE_BUILTIN_EXPECT"}
+  SkRawPublicKeySize* = 65
+    ## Size of uncompressed public key in octets (bytes)
 
-{.compile: secpSrc.}
+  SkRawCompressedPublicKeySize* = 33
+    ## Size of compressed public key in octets (bytes)
 
-{.pragma: secp, importc, cdecl, raises: [].}
+  SkMessageSize* = 32
+    ## Size of message that can be signed
 
-type
-  secp256k1_pubkey* = object
-    data*: array[64, uint8]
+  SkEdchSecretSize* = 32
+    ## ECDH-agreed key size
 
-  secp256k1_ecdsa_signature* = object
-    data*: array[64, uint8]
-
-  secp256k1_nonce_function* = proc (nonce32: ptr cuchar; msg32: ptr cuchar;
-                                    key32: ptr cuchar; algo16: ptr cuchar; data: pointer;
-                                    attempt: cuint): cint {.cdecl, raises: [].}
-  secp256k1_error_function* = proc (message: cstring; data: pointer) {.cdecl, raises: [].}
-
-  secp256k1_ecdh_hash_function* = proc (output: ptr cuchar,
-                                        x32, y32: ptr cuchar,
-                                        data: pointer) {.cdecl, raises: [].}
-
-  secp256k1_context* = object
-  secp256k1_scratch_space* = object
-
-const
-  SECP256K1_FLAGS_TYPE_MASK* = ((1 shl 8) - 1)
-  SECP256K1_FLAGS_TYPE_CONTEXT* = (1 shl 0)
-  SECP256K1_FLAGS_TYPE_COMPRESSION* = (1 shl 1)
-
-  ## * The higher bits contain the actual data. Do not use directly.
-  SECP256K1_FLAGS_BIT_CONTEXT_VERIFY* = (1 shl 8)
-  SECP256K1_FLAGS_BIT_CONTEXT_SIGN* = (1 shl 9)
-  SECP256K1_FLAGS_BIT_CONTEXT_DECLASSIFY* = (1 shl 10)
-  SECP256K1_FLAGS_BIT_COMPRESSION* = (1 shl 8)
-
-  ## * Flags to pass to secp256k1_context_create.
-  SECP256K1_CONTEXT_VERIFY* = (
-    SECP256K1_FLAGS_TYPE_CONTEXT or SECP256K1_FLAGS_BIT_CONTEXT_VERIFY)
-  SECP256K1_CONTEXT_SIGN* = (
-    SECP256K1_FLAGS_TYPE_CONTEXT or SECP256K1_FLAGS_BIT_CONTEXT_SIGN)
-  SECP256K1_CONTEXT_DECLASSIFY* = (
-    SECP256K1_FLAGS_TYPE_CONTEXT or SECP256K1_FLAGS_BIT_CONTEXT_DECLASSIFY
-  )
-  SECP256K1_CONTEXT_NONE* = (SECP256K1_FLAGS_TYPE_CONTEXT)
-
-  ## * Flag to pass to secp256k1_ec_pubkey_serialize and secp256k1_ec_privkey_export.
-  SECP256K1_EC_COMPRESSED* = (
-    SECP256K1_FLAGS_TYPE_COMPRESSION or SECP256K1_FLAGS_BIT_COMPRESSION)
-  SECP256K1_EC_UNCOMPRESSED* = (SECP256K1_FLAGS_TYPE_COMPRESSION)
-
-  ## * Prefix byte used to tag various encoded curvepoints for specific purposes
-  SECP256K1_TAG_PUBKEY_EVEN* = 0x00000002
-  SECP256K1_TAG_PUBKEY_ODD* = 0x00000003
-  SECP256K1_TAG_PUBKEY_UNCOMPRESSED* = 0x00000004
-  SECP256K1_TAG_PUBKEY_HYBRID_EVEN* = 0x00000006
-  SECP256K1_TAG_PUBKEY_HYBRID_ODD* = 0x00000007
-
-var secp256k1_context_no_precomp_imp {.
-  importc: "secp256k1_context_no_precomp".}: ptr secp256k1_context
-let secp256k1_context_no_precomp* = secp256k1_context_no_precomp_imp
-
-var secp256k1_ecdh_hash_function_default_imp {.
-  importc: "secp256k1_ecdh_hash_function_default".}: secp256k1_ecdh_hash_function
-let secp256k1_ecdh_hash_function_default* =
-  secp256k1_ecdh_hash_function_default_imp
-
-proc secp256k1_context_create*(
-  flags: cuint): ptr secp256k1_context {.secp.}
-
-proc secp256k1_context_clone*(
-  ctx: ptr secp256k1_context): ptr secp256k1_context {.secp.}
-
-proc secp256k1_context_destroy*(
-  ctx: ptr secp256k1_context) {.secp.}
-
-proc secp256k1_context_set_illegal_callback*(
-  ctx: ptr secp256k1_context;
-  fun: secp256k1_error_function;
-  data: pointer) {.secp.}
-
-proc secp256k1_context_set_error_callback*(
-  ctx: ptr secp256k1_context;
-  fun: secp256k1_error_function;
-  data: pointer) {.secp.}
-
-proc secp256k1_scratch_space_create*(
-  ctx: ptr secp256k1_context;
-  size: csize_t): ptr secp256k1_scratch_space {.secp.}
-
-proc secp256k1_scratch_space_destroy*(
-  ctx: ptr secp256k1_context;
-  scratch: ptr secp256k1_scratch_space) {.secp.}
-
-proc secp256k1_ec_pubkey_parse*(
-  ctx: ptr secp256k1_context;
-  pubkey: ptr secp256k1_pubkey;
-  input: ptr cuchar;
-  inputlen: csize_t): cint {.secp.}
-
-proc secp256k1_ec_pubkey_serialize*(
-  ctx: ptr secp256k1_context;
-  output: ptr cuchar;
-  outputlen: ptr csize_t;
-  pubkey: ptr secp256k1_pubkey;
-  flags: cuint): cint {.secp.}
-
-proc secp256k1_ecdsa_signature_parse_compact*(
-  ctx: ptr secp256k1_context;
-  sig: ptr secp256k1_ecdsa_signature;
-  input64: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ecdsa_signature_parse_der*(
-  ctx: ptr secp256k1_context;
-  sig: ptr secp256k1_ecdsa_signature;
-  input: ptr cuchar;
-  inputlen: csize_t): cint {.secp.}
-
-proc secp256k1_ecdsa_signature_serialize_der*(
-  ctx: ptr secp256k1_context;
-  output: ptr cuchar;
-  outputlen: ptr csize_t;
-  sig: ptr secp256k1_ecdsa_signature): cint {.secp.}
-
-proc secp256k1_ecdsa_signature_serialize_compact*(
-  ctx: ptr secp256k1_context;
-  output64: ptr cuchar;
-  sig: ptr secp256k1_ecdsa_signature): cint {.secp.}
-
-proc secp256k1_ecdsa_verify*(
-  ctx: ptr secp256k1_context;
-  sig: ptr secp256k1_ecdsa_signature;
-  msg32: ptr cuchar;
-  pubkey: ptr secp256k1_pubkey): cint {.secp.}
-
-proc secp256k1_ecdsa_signature_normalize*(
-  ctx: ptr secp256k1_context;
-  sigout: ptr secp256k1_ecdsa_signature;
-  sigin: ptr secp256k1_ecdsa_signature): cint {.secp.}
-
-proc secp256k1_ecdsa_sign*(
-  ctx: ptr secp256k1_context;
-  sig: ptr secp256k1_ecdsa_signature;
-  msg32: ptr cuchar;
-  seckey: ptr cuchar;
-  noncefp: secp256k1_nonce_function;
-  ndata: pointer): cint {.secp.}
-
-proc secp256k1_ec_seckey_verify*(
-  ctx: ptr secp256k1_context;
-  seckey: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_pubkey_create*(
-  ctx: ptr secp256k1_context;
-  pubkey: ptr secp256k1_pubkey;
-  seckey: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_privkey_negate*(
-  ctx: ptr secp256k1_context;
-  seckey: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_pubkey_negate*(
-  ctx: ptr secp256k1_context;
-  pubkey: ptr secp256k1_pubkey): cint {.secp.}
-
-proc secp256k1_ec_privkey_tweak_add*(
-  ctx: ptr secp256k1_context;
-  seckey: ptr cuchar;
-  tweak: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_pubkey_tweak_add*(
-  ctx: ptr secp256k1_context;
-  pubkey: ptr secp256k1_pubkey;
-  tweak: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_privkey_tweak_mul*(
-  ctx: ptr secp256k1_context;
-  seckey: ptr cuchar;
-  tweak: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_pubkey_tweak_mul*(
-  ctx: ptr secp256k1_context;
-  pubkey: ptr secp256k1_pubkey;
-  tweak: ptr cuchar): cint {.secp.}
-
-proc secp256k1_context_randomize*(
-  ctx: ptr secp256k1_context;
-  seed32: ptr cuchar): cint {.secp.}
-
-proc secp256k1_ec_pubkey_combine*(
-  ctx: ptr secp256k1_context;
-  output: ptr secp256k1_pubkey;
-  ins: ptr ptr secp256k1_pubkey;
-  n: csize_t): cint {.secp.}
-
-var secp256k1_nonce_function_rfc6979*: secp256k1_nonce_function
-var secp256k1_nonce_function_default*: secp256k1_nonce_function
-
-## Recovery interface follows
+  SkEcdhRawSecretSize* = 33
+    ## ECDH-agreed raw key size
 
 type
-  secp256k1_ecdsa_recoverable_signature* = object
-    ## Opaque data structured that holds a parsed ECDSA signature,
-    ## supporting pubkey recovery.
-    ## The exact representation of data inside is implementation defined and not
-    ## guaranteed to be portable between different platforms or versions. It is
-    ## however guaranteed to be 65 bytes in size, and can be safely copied/moved.
-    ## If you need to convert to a format suitable for storage or transmission, use
-    ## the secp256k1_ecdsa_signature_serialize_* and
-    ## secp256k1_ecdsa_signature_parse_* functions.
-    ## Furthermore, it is guaranteed that identical signatures (including their
-    ## recoverability) will have identical representation, so they can be
-    ## memcmp'ed.
-    data*: array[65, uint8]
+  SkPublicKey* = secp256k1_pubkey
+    ## Representation of public key.
 
-proc secp256k1_ecdsa_sign_recoverable*(
-  ctx: ptr secp256k1_context;
-  sig: ptr secp256k1_ecdsa_recoverable_signature;
-  msg32: ptr cuchar;
-  seckey: ptr cuchar;
-  noncefp: secp256k1_nonce_function;
-  ndata: pointer): cint {.secp.}
-  ##  Create a recoverable ECDSA signature.
-  ##
-  ##  Returns: 1: signature created
-  ##           0: the nonce generation function failed, or the private key was invalid.
-  ##  Args:    ctx:    pointer to a context object, initialized for signing (cannot be NULL)
-  ##  Out:     sig:    pointer to an array where the signature will be placed (cannot be NULL)
-  ##  In:      msg32:  the 32-byte message hash being signed (cannot be NULL)
-  ##           seckey: pointer to a 32-byte secret key (cannot be NULL)
-  ##           noncefp:pointer to a nonce generation function. If NULL, secp256k1_nonce_function_default is used
-  ##           ndata:  pointer to arbitrary data used by the nonce generation function (can be NULL)
-  ##
+  SkSecretKey* = object
+    ## Representation of secret key.
+    data*: array[SkRawSecretKeySize, byte]
 
-proc secp256k1_ecdsa_recover*(
-  ctx: ptr secp256k1_context;
-  pubkey: ptr secp256k1_pubkey;
-  sig: ptr secp256k1_ecdsa_recoverable_signature;
-  msg32: ptr cuchar): cint {.secp.}
-  ##  Recover an ECDSA public key from a signature.
-  ##
-  ##  Returns: 1: public key successfully recovered (which guarantees a correct signature).
-  ##           0: otherwise.
-  ##  Args:    ctx:        pointer to a context object, initialized for verification (cannot be NULL)
-  ##  Out:     pubkey:     pointer to the recovered public key (cannot be NULL)
-  ##  In:      sig:        pointer to initialized signature that supports pubkey recovery (cannot be NULL)
-  ##           msg32:      the 32-byte message hash assumed to be signed (cannot be NULL)
-  ##
+  SkKeyPair* = object
+    ## Representation of private/public keys pair.
+    seckey*: SkSecretKey
+    pubkey*: SkPublicKey
 
-proc secp256k1_ecdsa_recoverable_signature_serialize_compact*(
-  ctx: ptr secp256k1_context;
-  output64: ptr cuchar;
-  recid: ptr cint;
-  sig: ptr secp256k1_ecdsa_recoverable_signature): cint {.secp.}
-  ##  Serialize an ECDSA signature in compact format (64 bytes + recovery id).
-  ##
-  ##  Returns: 1
-  ##  Args: ctx:      a secp256k1 context object
-  ##  Out:  output64: a pointer to a 64-byte array of the compact signature (cannot be NULL)
-  ##        recid:    a pointer to an integer to hold the recovery id (can be NULL).
-  ##  In:   sig:      a pointer to an initialized signature object (cannot be NULL)
-  ##
+  SkSignature* = secp256k1_ecdsa_signature
+    ## Representation of non-recoverable signature.
 
-proc secp256k1_ecdsa_recoverable_signature_parse_compact*(
-  ctx: ptr secp256k1_context;
-  sig: ptr secp256k1_ecdsa_recoverable_signature;
-  input64: ptr cuchar, recid: cint): cint {.secp.}
+  SkRecoverableSignature* = secp256k1_ecdsa_recoverable_signature
+    ## Representation of recoverable signature.
 
-proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
-                     pubkey: ptr secp256k1_pubkey;
-                     privkey: ptr cuchar,
-                     hashfp: secp256k1_ecdh_hash_function,
-                     data: pointer
-                     ): cint {.secp.}
-  ## Compute an EC Diffie-Hellman secret in constant time
-  ## Returns: 1: exponentiation was successful
-  ##          0: scalar was invalid (zero or overflow)
-  ## Args:    ctx:        pointer to a context object (cannot be NULL)
-  ## Out:     result:     a 32-byte array which will be populated by an ECDH
-  ##                      secret computed from the point and scalar
-  ## In:      pubkey:     a pointer to a secp256k1_pubkey containing an
-  ##                      initialized public key
-  ##          privkey:    a 32-byte scalar with which to multiply the point
+  SkContext* = ref object
+    ## Representation of Secp256k1 context object.
+    context: ptr secp256k1_context
+
+  SkMessage* = MDigest[SkMessageSize * 8]
+    ## Message that can be signed or verified
+
+  SkEcdhSecret* = object
+    ## Representation of ECDH shared secret
+    data*: array[SkEdchSecretSize, byte]
+
+  SkEcdhRawSecret* = object
+    ## Representation of ECDH shared secret, with leading `y` byte
+    # (`y` is 0x02 when pubkey.y is even or 0x03 when odd)
+    data*: array[SkEcdhRawSecretSize, byte]
+
+  SkResult*[T] = Result[T, cstring]
+
+##
+## Private procedures interface
+##
+
+var secpContext {.threadvar.}: SkContext
+  ## Thread local variable which holds current context
+
+proc illegalCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
+  # This is called for example when an invalid key is used - we'll simply
+  # ignore and rely on the return value
+  # TODO it would be nice if a "constructor" could be used such that no invalid
+  #      keys can ever be created - this would remove the need for this kludge -
+  #      rust-secp256k1 for example operates under this principle. the
+  #      alternative would be to pre-validate keys before every function call
+  #      but that seems expensive given that libsecp itself already does this
+  #      check
+  discard
+
+proc errorCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
+  # Internal panic - should never happen
+  echo message
+  echo getStackTrace()
+  quit 1
+
+template ptr0(v: array|openArray): ptr cuchar =
+  cast[ptr cuchar](unsafeAddr v[0])
+
+proc shutdownLibsecp256k1(ctx: SkContext) =
+  # TODO: use destructor when finalizer are deprecated for destructors
+  if not(isNil(ctx.context)):
+    secp256k1_context_destroy(ctx.context)
+
+proc newSkContext(): SkContext =
+  ## Create new Secp256k1 context object.
+  new(result, shutdownLibsecp256k1)
+  let flags = cuint(SECP256K1_CONTEXT_VERIFY or SECP256K1_CONTEXT_SIGN)
+  result.context = secp256k1_context_create(flags)
+  secp256k1_context_set_illegal_callback(
+    result.context, illegalCallback, cast[pointer](result))
+  secp256k1_context_set_error_callback(
+    result.context, errorCallback, cast[pointer](result))
+
+func getContext(): ptr secp256k1_context =
+  ## Get current `EccContext`
+  {.noSideEffect.}: # TODO what problems will this cause?
+    if isNil(secpContext):
+      secpContext = newSkContext()
+    secpContext.context
+
+proc fromHex*(T: type seq[byte], s: string): SkResult[T] =
+  # TODO move this to some common location and return a general error?
+  try:
+    ok(hexToSeqByte(s))
+  except CatchableError:
+    err("secp: cannot parse hex string")
+
+proc verify*(seckey: SkSecretKey): bool =
+  secp256k1_ec_seckey_verify(
+    secp256k1_context_no_precomp, seckey.data.ptr0) == 1
+
+proc random*(T: type SkSecretKey): SkResult[T] =
+  ## Generates new random private key.
+  var sk: T
+  while randomBytes(sk.data) == SkRawSecretKeySize:
+    if sk.verify():
+      return ok(sk)
+
+  return err("secp: cannot get random bytes for key")
+
+proc fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
+  ## Load a valid private key, as created by `toRaw`
+  if len(data) < SkRawSecretKeySize:
+    return err(static(&"secp: raw private key should be {SkRawSecretKeySize} bytes"))
+
+  if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) != 1:
+    return err("secp: invalid private key")
+
+  ok(T(data: toArray(32, data.toOpenArray(0, SkRawSecretKeySize - 1))))
+
+proc fromHex*(T: type SkSecretKey, data: string): SkResult[T] =
+  ## Initialize Secp256k1 `private key` ``key`` from hexadecimal string
+  ## representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+proc toRaw*(seckey: SkSecretKey): array[SkRawSecretKeySize, byte] =
+  ## Serialize Secp256k1 `private key` ``key`` to raw binary form
+  seckey.data
+
+proc toHex*(seckey: SkSecretKey): string =
+  toHex(toRaw(seckey))
+
+proc toPublicKey*(key: SkSecretKey): SkResult[SkPublicKey] =
+  ## Calculate and return Secp256k1 `public key` from `private key` ``key``.
+  var pubkey: SkPublicKey
+  if secp256k1_ec_pubkey_create(getContext(), addr pubkey, key.data.ptr0) != 1:
+    return err("secp: cannot create pubkey, private key invalid?")
+
+  ok(pubkey)
+
+proc fromRaw*(T: type SkPublicKey, data: openArray[byte]): SkResult[T] =
+  ## Initialize Secp256k1 `public key` ``key`` from raw binary
+  ## representation ``data``, which may be compressed, uncompressed or hybrid
+  if len(data) < SkRawCompressedPublicKeySize:
+    return err(static(
+      &"secp: public key must be {SkRawCompressedPublicKeySize} or {SkRawPublicKeySize} bytes"))
+
+  var length: int
+  if data[0] == 0x02'u8 or data[0] == 0x03'u8:
+    length = min(len(data), SkRawCompressedPublicKeySize)
+  elif data[0] == 0x04'u8 or data[0] == 0x06'u8 or data[0] == 0x07'u8:
+    length = min(len(data), SkRawPublicKeySize)
+  else:
+    return err("secp: public key format not recognised")
+
+  var key: SkPublicKey
+  if secp256k1_ec_pubkey_parse(
+      getContext(), addr key, data.ptr0, csize_t(length)) != 1:
+    return err("secp: cannot parse public key")
+
+  ok(key)
+
+proc fromHex*(T: type SkPublicKey, data: string): SkResult[T] =
+  ## Initialize Secp256k1 `public key` ``key`` from hexadecimal string
+  ## representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+proc toRaw*(pubkey: SkPublicKey): array[SkRawPublicKeySize, byte] =
+  ## Serialize Secp256k1 `public key` ``key`` to raw uncompressed form
+  var length = csize_t(len(result))
+  # Can't fail, per documentation
+  discard secp256k1_ec_pubkey_serialize(
+    getContext(), result.ptr0, addr length, unsafeAddr pubkey,
+    SECP256K1_EC_UNCOMPRESSED)
+
+proc toHex*(pubkey: SkPublicKey): string =
+  toHex(toRaw(pubkey))
+
+proc toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, byte] =
+  ## Serialize Secp256k1 `public key` ``key`` to raw compressed form
+  var length = csize_t(len(result))
+  # Can't fail, per documentation
+  discard secp256k1_ec_pubkey_serialize(
+    getContext(), result.ptr0, addr length, unsafeAddr pubkey,
+    SECP256K1_EC_COMPRESSED)
+
+proc toHexCompressed*(pubkey: SkPublicKey): string =
+  toHex(toRawCompressed(pubkey))
+
+proc fromRaw*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
+  ## Load compact signature from data
+  if data.len() < SkRawSignatureSize:
+    return err(static(&"secp: signature must be {SkRawSignatureSize} bytes"))
+
+  var sig: SkSignature
+  if secp256k1_ecdsa_signature_parse_compact(
+      getContext(), addr sig, data.ptr0) != 1:
+    return err("secp: cannot parse signaure")
+
+  ok(sig)
+
+proc fromDer*(T: type SkSignature, data: openarray[byte]): SkResult[T] =
+  ## Initialize Secp256k1 `signature` ``sig`` from DER
+  ## representation ``data``.
+  if len(data) < 1:
+    return err("secp: DER signature too short")
+
+  var sig: T
+  if secp256k1_ecdsa_signature_parse_der(
+      getContext(), addr sig, data.ptr0, csize_t(len(data))) != 1:
+    return err("secp: cannot parse DER signature")
+
+  ok(sig)
+
+proc fromHex*(T: type SkSignature, data: string): SkResult[T] =
+  ## Initialize Secp256k1 `signature` ``sig`` from hexadecimal string
+  ## representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+proc toRaw*(sig: SkSignature): array[SkRawSignatureSize, byte] =
+  ## Serialize signature to compact binary form
+  # Can't fail, per documentation
+  discard secp256k1_ecdsa_signature_serialize_compact(
+    getContext(), result.ptr0, unsafeAddr sig)
+
+proc toDer*(sig: SkSignature, data: var openarray[byte]): int =
+  ## Serialize Secp256k1 `signature` ``sig`` to raw binary form and store it
+  ## to ``data``.
   ##
+  ## Procedure returns number of bytes (octets) needed to store
+  ## Secp256k1 signature.
+  let ctx = getContext()
+  var buffer: array[SkDerSignatureMaxSize, byte]
+  var plength = csize_t(len(buffer))
+  discard secp256k1_ecdsa_signature_serialize_der(
+    ctx, buffer.ptr0, addr plength, unsafeAddr sig)
+  result = int(plength)
+  if len(data) >= result:
+    copyMem(addr data[0], addr buffer[0], result)
 
-template secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
-                     pubkey: ptr secp256k1_pubkey;
-                     privkey: ptr cuchar
-                     ): cint =
-  secp256k1_ecdh(ctx, output32, pubkey, privkey,
-    secp256k1_ecdh_hash_function_default, nil)
+proc toDer*(sig: SkSignature): seq[byte] =
+  ## Serialize Secp256k1 `signature` and return it.
+  result = newSeq[byte](72)
+  let length = toDer(sig, result)
+  result.setLen(length)
 
-proc secp256k1_ecdh_raw*(ctx: ptr secp256k1_context; output32: ptr cuchar;
-                         pubkey: ptr secp256k1_pubkey;
-                         input32: ptr cuchar): cint {.secp.}
-  ## Compute an EC Diffie-Hellman secret in constant time
-  ## Returns: 1: exponentiation was successful
-  ##         0: scalar was invalid (zero or overflow)
-  ## Args:    ctx:        pointer to a context object (cannot be NULL)
-  ## Out:     result:     a 33-byte array which will be populated by an ECDH
-  ##                      secret computed from the point and scalar in form
-  ##                      of compressed point
-  ## In:      pubkey:     a pointer to a secp256k1_pubkey containing an
-  ##                      initialized public key
-  ##          privkey:    a 32-byte scalar with which to multiply the point
-  ##
+proc toHex*(sig: SkSignature): string =
+  toHex(toRaw(sig))
+
+proc fromRaw*(T: type SkRecoverableSignature, data: openArray[byte]): SkResult[T] =
+  if data.len() < SkRawRecoverableSignatureSize:
+    return err(
+      static(&"secp: recoverable signature must be {SkRawRecoverableSignatureSize} bytes"))
+
+  let recid = cint(data[64])
+  var sig: SkRecoverableSignature
+  if secp256k1_ecdsa_recoverable_signature_parse_compact(
+      getContext(), addr sig, data.ptr0, recid) != 1:
+    return err("secp: invalid recoverable signature")
+
+  ok(sig)
+
+proc fromHex*(T: type SkRecoverableSignature, data: string): SkResult[T] =
+  ## Initialize Secp256k1 `signature` ``sig`` from hexadecimal string
+  ## representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+proc toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, byte] =
+  ## Converts recoverable signature to compact binary form
+  var recid = cint(0)
+  # Can't fail, per documentation
+  discard secp256k1_ecdsa_recoverable_signature_serialize_compact(
+      getContext(), result.ptr0, addr recid, unsafeAddr sig)
+  result[64] = byte(recid)
+
+proc toHex*(sig: SkRecoverableSignature): string =
+  toHex(toRaw(sig))
+
+proc random*(T: type SkKeyPair): SkResult[T] =
+  ## Generates new random key pair.
+  let seckey = ? SkSecretKey.random()
+  ok(T(
+    seckey: seckey,
+    pubkey: seckey.toPublicKey().expect("random key should always be valid")
+  ))
+
+proc `==`*(lhs, rhs: SkPublicKey): bool =
+  ## Compare Secp256k1 `public key` objects for equality.
+  lhs.toRaw() == rhs.toRaw()
+
+proc `==`*(lhs, rhs: SkSignature): bool =
+  ## Compare Secp256k1 `signature` objects for equality.
+  lhs.toRaw() == rhs.toRaw()
+
+proc `==`*(lhs, rhs: SkRecoverableSignature): bool =
+  ## Compare Secp256k1 `recoverable signature` objects for equality.
+  lhs.toRaw() == rhs.toRaw()
+
+proc sign*(key: SkSecretKey, msg: SkMessage): SkResult[SkSignature] =
+  ## Sign message `msg` using private key `key` and return signature object.
+  var sig: SkSignature
+  if secp256k1_ecdsa_sign(
+      getContext(), addr sig, msg.data.ptr0, key.data.ptr0, nil, nil) != 1:
+    return err("secp: cannot create signature, key invalid?")
+
+  ok(sig)
+
+proc signRecoverable*(key: SkSecretKey, msg: SkMessage): SkResult[SkRecoverableSignature] =
+  ## Sign message `msg` using private key `key` and return signature object.
+  var sig: SkRecoverableSignature
+  if secp256k1_ecdsa_sign_recoverable(
+      getContext(), addr sig, msg.data.ptr0, key.data.ptr0, nil, nil) != 1:
+    return err("secp: cannot create recoverable signature, key invalid?")
+
+  ok(sig)
+
+proc verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
+  secp256k1_ecdsa_verify(
+    getContext(), unsafeAddr sig, msg.data.ptr0, unsafeAddr key) == 1
+
+proc recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
+  var pubkey: SkPublicKey
+  if secp256k1_ecdsa_recover(
+      getContext(), addr pubkey, unsafeAddr sig, msg.data.ptr0) != 1:
+    return err("secp: cannot recover public key from signature")
+
+  ok(pubkey)
+
+proc ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkResult[SkEcdhSecret] =
+  ## Calculate ECDH shared secret.
+  var secret: SkEcdhSecret
+  if secp256k1_ecdh(
+      getContext(), secret.data.ptr0, unsafeAddr pubkey, seckey.data.ptr0) != 1:
+    return err("secp: cannot compute ECDH secret")
+
+  ok(secret)
+
+proc ecdhRaw*(seckey: SkSecretKey, pubkey: SkPublicKey): SkResult[SkEcdhRawSecret] =
+  ## Calculate ECDH shared secret, ethereum style
+  # TODO - deprecate: https://github.com/status-im/nim-eth/issues/222
+  var secret: SkEcdhRawSecret
+  if secp256k1_ecdh_raw(
+      getContext(), secret.data.ptr0, unsafeAddr pubkey, seckey.data.ptr0) != 1:
+    return err("Cannot compute raw ECDH secret")
+
+  ok(secret)
+
+proc clear*(v: var SkSecretKey) {.inline.} =
+  ## Wipe and clear memory of Secp256k1 `private key`.
+  burnMem(v.data)
+
+proc clear*(v: var SkPublicKey) {.inline.} =
+  ## Wipe and clear memory of Secp256k1 `public key`.
+  burnMem(v.data)
+
+proc clear*(v: var SkSignature) {.inline.} =
+  ## Wipe and clear memory of Secp256k1 `signature`.
+  burnMem(v.data)
+
+proc clear*(v: var SkRecoverableSignature) {.inline.} =
+  ## Wipe and clear memory of Secp256k1 `signature`.
+  burnMem(v.data)
+
+proc clear*(v: var SkKeyPair) {.inline.} =
+  ## Wipe and clear memory of Secp256k1 `key pair`.
+  v.seckey.clear()
+  v.pubkey.clear()
+
+proc clear*(v: var SkEcdhSecret) =
+  burnMem(v.data)
+
+proc clear*(v: var SkEcdhRawSecret) =
+  burnMem(v.data)
+
+proc `$`*(
+    v: SkPublicKey | SkSecretKey | SkSignature | SkRecoverableSignature): string =
+  toHex(v)
+
+proc fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
+  if data.len() != SkMessageSize:
+    return err("Message must be 32 bytes")
+
+  ok(SkMessage(data: toArray(SkMessageSize, data)))

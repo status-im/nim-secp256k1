@@ -1,13 +1,15 @@
 mode = ScriptMode.Verbose
 
 packageName   = "secp256k1"
-version       = "0.1.2"
+version       = "0.2.0"
 author        = "Status Research & Development GmbH"
 description   = "A wrapper for the libsecp256k1 C library"
 license       = "Apache License 2.0"
 installDirs   = @["secp256k1_wrapper"]
 
-requires "nim >= 0.18.0"
+requires "nim >= 1.2.0"
+requires "stew"
+requires "nimcrypto"
 
 proc test(name: string, lang: string = "c") =
   if not dirExists "build":
@@ -17,5 +19,5 @@ proc test(name: string, lang: string = "c") =
   switch("out", ("./build/" & name))
   setCommand lang, "tests/" & name & ".nim"
 
-task test, "Run Proof-of-Work tests (without mining)":
-  test "test1"
+task test, "Tests":
+  test "all_tests"

@@ -7,7 +7,8 @@
 ![Stability: experimental](https://img.shields.io/badge/stability-experimental-orange.svg)
 
 # Introduction
-This library is a wrapper for Bitcoin's [secp256k1](https://github.com/bitcoin-core/secp256k1) library.
+
+This library is a wrapper for Bitcoin's [secp256k1](https://github.com/bitcoin-core/secp256k1) library. Two interfaces are exposed - `secp256k1` which thinly wraps the raw C interface found in `secp256k1_abi`. The thin wrapper is recommended.
 
 # Installation
 
