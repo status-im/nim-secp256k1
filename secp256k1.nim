@@ -454,3 +454,12 @@ proc fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
     return err("Message must be 32 bytes")
 
   ok(SkMessage(data: toArray(SkMessageSize, data)))
+
+# Close `requiresInit` loophole
+# TODO replace `requiresInit` with a pragma that does the expected thing
+proc default*(T: type SkPublicKey): T {.error: "loophole".}
+proc default*(T: type SkSecretKey): T {.error: "loophole".}
+proc default*(T: type SkSignature): T {.error: "loophole".}
+proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
+proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
+proc default*(T: type SkEcdhRawSecret): T {.error: "loophole".}
