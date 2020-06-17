@@ -414,35 +414,16 @@ proc clear*(v: var SkSecretKey) =
   ## result in undefined behaviour or Defect
   burnMem(v.data)
 
-proc clear*(v: var SkPublicKey) =
-  ## Wipe and clear memory of Secp256k1 `public key`.
-  ## After calling this function, the key is invalid and using it elsewhere will
-  ## result in undefined behaviour or Defect
-  burnMem(v.data)
-
-proc clear*(v: var SkSignature) =
-  ## Wipe and clear memory of Secp256k1 `signature`.
-  ## After calling this function, the key is invalid and using it elsewhere will
-  ## result in undefined behaviour or Defect
-  burnMem(v.data)
-
-proc clear*(v: var SkRecoverableSignature) =
-  ## Wipe and clear memory of Secp256k1 `signature`.
-  ## After calling this function, the key is invalid and using it elsewhere will
-  ## result in undefined behaviour or Defect
-  burnMem(v.data)
-
-proc clear*(v: var SkKeyPair) =
-  ## Wipe and clear memory of Secp256k1 `key pair`.
-  ## After calling this function, the key is invalid and using it elsewhere will
-  ## result in undefined behaviour or Defect
-  v.seckey.clear()
-  v.pubkey.clear()
-
 proc clear*(v: var SkEcdhSecret) =
+  ## Wipe and clear memory of ECDH `shared secret`.
+  ## After calling this function, the key is invalid and using it elsewhere will
+  ## result in undefined behaviour or Defect
   burnMem(v.data)
 
 proc clear*(v: var SkEcdhRawSecret) =
+  ## Wipe and clear memory of ECDH `shared secret`.
+  ## After calling this function, the key is invalid and using it elsewhere will
+  ## result in undefined behaviour or Defect
   burnMem(v.data)
 
 proc `$`*(
