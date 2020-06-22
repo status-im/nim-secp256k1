@@ -303,8 +303,8 @@ func toDer*(sig: SkSignature, data: var openarray[byte]): int =
   ## Serialize Secp256k1 `signature` ``sig`` to raw binary form and store it
   ## to ``data``.
   ##
-  ## funcedure returns number of bytes (octets) needed to store
-  ## Secp256k1 signature.
+  ## Returns number of bytes (octets) needed to store secp256k1 signature - if
+  ## this is more than `data.len`, `data` is not written to.
   var buffer: array[SkDerSignatureMaxSize, byte]
   var plength = csize_t(len(buffer))
   {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
