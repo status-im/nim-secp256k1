@@ -147,12 +147,18 @@ proc newSkContext(): SkContext =
 
 func getContext(): ptr secp256k1_context =
   ## Get current `EccContext`
-  {.noSideEffect.}: # TODO what problems will this cause?
+  {.noSideEffect.}:
+    # TODO modifying the secp context here is a side effect, but not
+    #      necessarily an observable one, since the modification is done to
+    #      a thread-local variable that is only  updated from within here.
+    #      Technically, it should be possible to precompute a static context
+    #      at compile time and use that instead, which would turn this into
+    #      a truly side-effect-free function, instead of an as-if-free one.
     if isNil(secpContext):
       secpContext = newSkContext()
     secpContext.context
 
-func fromHex*(T: type seq[byte], s: string): SkResult[T] =
+func fromHex(T: type seq[byte], s: string): SkResult[T] =
   # TODO move this to some common location and return a general error?
   try:
     ok(hexToSeqByte(s))
@@ -174,7 +180,7 @@ func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   if len(data) < SkRawSecretKeySize:
     return err(static(&"secp: raw private key should be {SkRawSecretKeySize} bytes"))
 
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) != 1:
       return err("secp: invalid private key")
 
@@ -217,7 +223,7 @@ func fromRaw*(T: type SkPublicKey, data: openArray[byte]): SkResult[T] =
     return err("secp: public key format not recognised")
 
   var key {.noinit.}: secp256k1_pubkey
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     if secp256k1_ec_pubkey_parse(
         secp256k1_context_no_precomp, addr key, data.ptr0, csize_t(length)) != 1:
       return err("secp: cannot parse public key")
@@ -233,7 +239,7 @@ func toRaw*(pubkey: SkPublicKey): array[SkRawPublicKeySize, byte] =
   ## Serialize Secp256k1 `public key` ``key`` to raw uncompressed form
   var length = csize_t(len(result))
 
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ec_pubkey_serialize(
       secp256k1_context_no_precomp, result.ptr0, addr length,
       unsafeAddr pubkey.data, SECP256K1_EC_UNCOMPRESSED)
@@ -245,7 +251,7 @@ func toHex*(pubkey: SkPublicKey): string =
 func toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, byte] =
   ## Serialize Secp256k1 `public key` ``key`` to raw compressed form
   var length = csize_t(len(result))
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ec_pubkey_serialize(
       secp256k1_context_no_precomp, result.ptr0, addr length,
       unsafeAddr pubkey.data, SECP256K1_EC_COMPRESSED)
@@ -260,7 +266,7 @@ func fromRaw*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
     return err(static(&"secp: signature must be {SkRawSignatureSize} bytes"))
 
   var sig {.noinit.}: secp256k1_ecdsa_signature
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     if secp256k1_ecdsa_signature_parse_compact(
         secp256k1_context_no_precomp, addr sig, data.ptr0) != 1:
       return err("secp: cannot parse signaure")
@@ -274,7 +280,7 @@ func fromDer*(T: type SkSignature, data: openarray[byte]): SkResult[T] =
     return err("secp: DER signature too short")
 
   var sig {.noinit.}: secp256k1_ecdsa_signature
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     if secp256k1_ecdsa_signature_parse_der(
         secp256k1_context_no_precomp, addr sig, data.ptr0, csize_t(len(data))) != 1:
       return err("secp: cannot parse DER signature")
@@ -288,7 +294,7 @@ func fromHex*(T: type SkSignature, data: string): SkResult[T] =
 
 func toRaw*(sig: SkSignature): array[SkRawSignatureSize, byte] =
   ## Serialize signature to compact binary form
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ecdsa_signature_serialize_compact(
       secp256k1_context_no_precomp, result.ptr0, unsafeAddr sig.data)
     doAssert res == 1, "Can't fail, per documentation"
@@ -301,7 +307,7 @@ func toDer*(sig: SkSignature, data: var openarray[byte]): int =
   ## Secp256k1 signature.
   var buffer: array[SkDerSignatureMaxSize, byte]
   var plength = csize_t(len(buffer))
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ecdsa_signature_serialize_der(
       secp256k1_context_no_precomp, buffer.ptr0, addr plength,
       unsafeAddr sig.data)
@@ -326,7 +332,7 @@ func fromRaw*(T: type SkRecoverableSignature, data: openArray[byte]): SkResult[T
 
   let recid = cint(data[64])
   var sig {.noinit.}: secp256k1_ecdsa_recoverable_signature
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     if secp256k1_ecdsa_recoverable_signature_parse_compact(
         secp256k1_context_no_precomp, addr sig, data.ptr0, recid) != 1:
       return err("secp: invalid recoverable signature")
@@ -341,7 +347,7 @@ func fromHex*(T: type SkRecoverableSignature, data: string): SkResult[T] =
 func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, byte] =
   ## Converts recoverable signature to compact binary form
   var recid = cint(0)
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ecdsa_recoverable_signature_serialize_compact(
         secp256k1_context_no_precomp, result.ptr0, addr recid, unsafeAddr sig.data)
     doAssert res == 1, "can't fail, per documentation"
@@ -402,7 +408,7 @@ func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey
 func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhSecret =
   ## Calculate ECDH shared secret.
   var secret {.noinit.}: array[SkEdchSecretSize, byte]
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ecdh(
         secp256k1_context_no_precomp, secret.ptr0, unsafeAddr pubkey.data,
         seckey.data.ptr0)
@@ -414,7 +420,7 @@ func ecdhRaw*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhRawSecret =
   ## Calculate ECDH shared secret, ethereum style
   # TODO - deprecate: https://github.com/status-im/nim-eth/issues/222
   var secret {.noinit.}: array[SkEcdhRawSecretSize, byte]
-  {.noSideEffect.}:
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ecdh_raw(
         secp256k1_context_no_precomp, secret.ptr0, unsafeAddr pubkey.data,
         seckey.data.ptr0)
