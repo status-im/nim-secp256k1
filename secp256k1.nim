@@ -38,6 +38,8 @@ export results
 # * Functions like "fromRaw/toRaw" are balanced and will always rountrip
 # * Functions like `fromRaw` are not called `init` because they may fail
 # * No CatchableErrors
+# * Where `secp256k1_context_no_precomp`, we surround the code with
+#   `{.noSideEffect.}` as the compiler cannot deduce that this is a constant
 
 const
   SkRawSecretKeySize* = 32 # 256 div 8
