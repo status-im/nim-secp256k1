@@ -158,7 +158,7 @@ func getContext(): ptr secp256k1_context =
       secpContext = newSkContext()
     secpContext.context
 
-func fromHex(T: type seq[byte], s: string): SkResult[T] =
+func fromHex*(T: type seq[byte], s: string): SkResult[T] =
   # TODO move this to some common location and return a general error?
   try:
     ok(hexToSeqByte(s))
