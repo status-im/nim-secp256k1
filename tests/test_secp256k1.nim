@@ -1,13 +1,6 @@
-import ../secp256k1, unittest, random
+import ../secp256k1, unittest
 
 {.used.}
-
-proc unsafeRng(data: var openArray[byte]): bool =
-  for b in data.mitems():
-    b = cast[byte](rand(255))
-  true
-
-proc brokenRng(data: var openArray[byte]): bool = false
 
 const
   msg0 = SkMessage([
@@ -23,10 +16,30 @@ const
     1'u8, 0, 0, 0, 0, 0, 0, 0,
   ])
 
+  validRandom = [
+    1'u8, 0, 0, 0, 0, 0, 0, 0,
+    1'u8, 0, 0, 0, 0, 0, 0, 0,
+    1'u8, 0, 0, 0, 0, 0, 0, 0,
+    1'u8, 0, 0, 0, 0, 0, 0, 0,
+  ]
+  validRandom2 = [
+    2'u8, 0, 0, 0, 0, 0, 0, 0,
+    2'u8, 0, 0, 0, 0, 0, 0, 0,
+    2'u8, 0, 0, 0, 0, 0, 0, 0,
+    2'u8, 0, 0, 0, 0, 0, 0, 0,
+  ]
+
+  invalidRandom = [
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+  ]
+
 suite "secp256k1":
   test "Key ops":
     let
-      sk = SkSecretKey.random(unsafeRng).expect("should get a key")
+      sk = SkSecretKey.random(validRandom).expect("should get a key")
       pk = sk.toPublicKey()
 
     check:
@@ -35,13 +48,13 @@ suite "secp256k1":
       SkPublicKey.fromRaw(pk.toRaw())[].toHex() == pk.toHex()
       SkPublicKey.fromRaw(pk.toRawCompressed())[].toHex() == pk.toHex()
       SkPublicKey.fromHex(pk.toHex())[].toHex() == pk.toHex()
-      SkSecretKey.random(brokenRng).isErr
+      SkSecretKey.random(invalidRandom).isErr
 
   test "Signatures":
     let
-      sk = SkSecretKey.random(unsafeRng)[]
+      sk = SkSecretKey.random(validRandom)[]
       pk = sk.toPublicKey()
-      otherPk = SkSecretKey.random(unsafeRng)[].toPublicKey()
+      otherPk = SkSecretKey.random(validRandom2)[].toPublicKey()
       sig = sign(sk, msg0)
       sig2 = signRecoverable(sk, msg0)
 

@@ -167,23 +167,20 @@ func fromHex*(T: type seq[byte], s: string): SkResult[T] =
   except CatchableError:
     err("secp: cannot parse hex string")
 
-type
-  Rng* = proc(buf: var openArray[byte]): bool {.raises: [Defect].}
-    ## Function filling the given buffer with random data, or returning false
-
-proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
-  ## Generates new random private key - a high-quality RNG should be used -
-  ## see nimcrypto or bearssl for good RNG's. The random number generator in
-  ## the Nim standard library `random` module in particular is of poor quality.
+proc random*(T: type SkSecretKey, data: array[SkRawSecretKeySize, byte]): SkResult[T] =
+  ## Generates new random private key - a cryptographically secure RNG should be
+  ## used - see nimcrypto or bearssl for good RNG's.
+  ## The random number generator in the Nim standard library `random` module in
+  ## particular is not cryptographically secure.
   ##
-  ## This function will not fail if the Rng doesn't fail.
-  var data{.noinit.}: array[SkRawSecretKeySize, byte]
+  ## This function may fail to generate a valid key from the random data. In
+  ## the current version, the caller should try again - consider timing attacks
+  ## and the context in which the key will be used before doing this.
 
-  while rng(data):
-    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) == 1:
-      return ok(T(data: data))
+  if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) == 1:
+    return ok(T(data: data))
 
-  return err("secp: cannot get random bytes for key")
+  return err("secp: cannot generate key from random data")
 
 func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   ## Load a valid private key, as created by `toRaw`
@@ -367,7 +364,7 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
 func toHex*(sig: SkRecoverableSignature): string =
   toHex(toRaw(sig))
 
-proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
+proc random*(T: type SkKeyPair, rng: array[SkRawSecretKeySize, byte]): SkResult[T] =
   ## Generates new random key pair.
   let seckey = ? SkSecretKey.random(rng)
   ok(T(
