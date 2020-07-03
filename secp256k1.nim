@@ -180,8 +180,8 @@ proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
   ##
   ## This function may fail to generate a valid key if the RNG fails. In the
   ## current version, the random number generation will be called in a loop
-  ## which may be vulnerable to timing attacks. Generate your keys elsewher
-  ## if this is a thread in your application.
+  ## which may be vulnerable to timing attacks. Generate your keys elsewhere
+  ## if this is a issue.
   var data{.noinit.}: array[SkRawSecretKeySize, byte]
 
   while rng(data):
