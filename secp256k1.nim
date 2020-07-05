@@ -168,7 +168,7 @@ func fromHex*(T: type seq[byte], s: string): SkResult[T] =
     err("secp: cannot parse hex string")
 
 type
-  Rng* = proc(data: var openArray[byte]): bool
+  Rng* = proc(data: var openArray[byte]): bool {.raises: [Defect], gcsafe.}
     ## A function that fills data with random bytes from a cryptographically
     ## secure source or returns false
 
