@@ -214,6 +214,7 @@ proc random*(T: type SkSecretKey, rng: FoolproofRng): T =
     if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) == 1:
       return T(data: data)
 
+  result = T(data: default(array[32, byte])) # Silence compiler
   raiseAssert "World ran out of fools and RNG failed to deliver"
 
 func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
