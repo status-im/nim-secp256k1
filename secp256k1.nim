@@ -10,9 +10,8 @@
 {.push raises: [Defect].}
 
 import
-  strformat,
+  strformat, typetraits,
   stew/[byteutils, objects, results],
-  nimcrypto/[hash, sysrand],
   ./secp256k1_abi
 
 from nimcrypto/utils import burnMem
@@ -93,7 +92,7 @@ type
     ## Representation of Secp256k1 context object.
     context: ptr secp256k1_context
 
-  SkMessage* = MDigest[SkMessageSize * 8]
+  SkMessage* = distinct array[SkMessageSize, byte]
     ## Message that can be signed or verified
 
   SkEcdhSecret* {.requiresInit.} = object
@@ -130,6 +129,9 @@ proc errorCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
 template ptr0(v: array|openArray): ptr cuchar =
   cast[ptr cuchar](unsafeAddr v[0])
 
+template ptr0(v: SkMessage): ptr cuchar =
+  ptr0(distinctBase(v))
+
 func shutdownLibsecp256k1(ctx: SkContext) =
   # TODO: use destructor when finalizer are deprecated for destructors
   if not(isNil(ctx.context)):
@@ -165,15 +167,56 @@ func fromHex*(T: type seq[byte], s: string): SkResult[T] =
   except CatchableError:
     err("secp: cannot parse hex string")
 
-proc random*(T: type SkSecretKey): SkResult[T] =
-  ## Generates new random private key.
+type
+  Rng* = proc(data: var openArray[byte]): bool {.raises: [Defect], gcsafe.}
+    ## A function that fills data with random bytes from a cryptographically
+    ## secure source or returns false
+
+  FoolproofRng* = proc(data: var openArray[byte]) {.raises: [Defect], gcsafe.}
+    ## The world will run out of fools before this RNG fails!
+
+proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
+  ## Generates new random private key - a cryptographically secure RNG should be
+  ## used - see nimcrypto or bearssl for good RNG's.
+  ##
+  ## The random number generator in the Nim standard library `random` module is
+  ## not cryptographically secure.
+  ##
+  ## This function may fail to generate a valid key if the RNG fails. In the
+  ## current version, the random number generation will be called in a loop
+  ## which may be vulnerable to timing attacks. Generate your keys elsewhere
+  ## if this is a issue.
   var data{.noinit.}: array[SkRawSecretKeySize, byte]
 
-  while randomBytes(data) == SkRawSecretKeySize:
+  while rng(data):
     if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) == 1:
       return ok(T(data: data))
 
   return err("secp: cannot get random bytes for key")
+
+proc random*(T: type SkSecretKey, rng: FoolproofRng): T =
+  ## Generates new random private key - a cryptographically secure RNG should be
+  ## used - see nimcrypto or bearssl for good RNG's.
+  ##
+  ## The random number generator in the Nim standard library `random` module is
+  ## not cryptographically secure.
+  ##
+  ## This function may fail to generate a valid key if the RNG fails, in which
+  ## case it will raise a Defect.
+  ##
+  ## In the current version, the random number generation will be called in a
+  ## loop which may be vulnerable to timing attacks. Generate your keys
+  ## elsewhere if this is a issue.
+  var data{.noinit.}: array[SkRawSecretKeySize, byte]
+
+  for _ in 0..1000*1000:
+    rng(data)
+    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) == 1:
+      return T(data: data)
+
+  result = T(data: default(array[32, byte])) # Silence compiler
+  # All-zeroes all the time for example will break this function
+  raiseAssert "RNG not giving random enough bytes, can't create valid key"
 
 func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   ## Load a valid private key, as created by `toRaw`
@@ -357,13 +400,21 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
 func toHex*(sig: SkRecoverableSignature): string =
   toHex(toRaw(sig))
 
-proc random*(T: type SkKeyPair): SkResult[T] =
+proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
-  let seckey = ? SkSecretKey.random()
+  let seckey = ? SkSecretKey.random(rng)
   ok(T(
     seckey: seckey,
     pubkey: seckey.toPublicKey()
   ))
+
+proc random*(T: type SkKeyPair, rng: FoolproofRng): T =
+  ## Generates new random key pair.
+  let seckey = SkSecretKey.random(rng)
+  T(
+    seckey: seckey,
+    pubkey: seckey.toPublicKey()
+  )
 
 func `==`*(lhs, rhs: SkPublicKey): bool =
   ## Compare Secp256k1 `public key` objects for equality.
@@ -379,9 +430,11 @@ func `==`*(lhs, rhs: SkRecoverableSignature): bool =
 
 func sign*(key: SkSecretKey, msg: SkMessage): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
+  ## It is recommended that `msg` is produced by hashing the input data to
+  ## a 32-byte hash, like sha256.
   var data {.noinit.}: secp256k1_ecdsa_signature
   let res = secp256k1_ecdsa_sign(
-    getContext(), addr data, msg.data.ptr0, key.data.ptr0, nil, nil)
+    getContext(), addr data, msg.ptr0, key.data.ptr0, nil, nil)
   doAssert res == 1, "cannot create signature, key invalid?"
   SkSignature(data: data)
 
@@ -389,18 +442,18 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   ## Sign message `msg` using private key `key` and return signature object.
   var data {.noinit.}: secp256k1_ecdsa_recoverable_signature
   let res = secp256k1_ecdsa_sign_recoverable(
-      getContext(), addr data, msg.data.ptr0, key.data.ptr0, nil, nil)
+      getContext(), addr data, msg.ptr0, key.data.ptr0, nil, nil)
   doAssert res == 1, "cannot create recoverable signature, key invalid?"
   SkRecoverableSignature(data: data)
 
 func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
-    getContext(), unsafeAddr sig.data, msg.data.ptr0, unsafeAddr key.data) == 1
+    getContext(), unsafeAddr sig.data, msg.ptr0, unsafeAddr key.data) == 1
 
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
   if secp256k1_ecdsa_recover(
-      getContext(), addr data, unsafeAddr sig.data, msg.data.ptr0) != 1:
+      getContext(), addr data, unsafeAddr sig.data, msg.ptr0) != 1:
     return err("secp: cannot recover public key from signature")
 
   ok(SkPublicKey(data: data))
@@ -454,7 +507,7 @@ func fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
   if data.len() != SkMessageSize:
     return err("Message must be 32 bytes")
 
-  ok(SkMessage(data: toArray(SkMessageSize, data)))
+  ok(SkMessage(toArray(SkMessageSize, data)))
 
 # Close `requiresInit` loophole
 # TODO replace `requiresInit` with a pragma that does the expected thing
