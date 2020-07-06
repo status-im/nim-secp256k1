@@ -172,11 +172,15 @@ type
     ## A function that fills data with random bytes from a cryptographically
     ## secure source or returns false
 
+  FoolproofRng* = proc(data: var openArray[byte]) {.raises: [Defect], gcsafe.}
+    ## The world will run out of fools before this RNG fails!
+
 proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
   ## Generates new random private key - a cryptographically secure RNG should be
   ## used - see nimcrypto or bearssl for good RNG's.
-  ## The random number generator in the Nim standard library `random` module in
-  ## particular is not cryptographically secure.
+  ##
+  ## The random number generator in the Nim standard library `random` module is
+  ## not cryptographically secure.
   ##
   ## This function may fail to generate a valid key if the RNG fails. In the
   ## current version, the random number generation will be called in a loop
@@ -189,6 +193,28 @@ proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
       return ok(T(data: data))
 
   return err("secp: cannot get random bytes for key")
+
+proc random*(T: type SkSecretKey, rng: FoolproofRng): T =
+  ## Generates new random private key - a cryptographically secure RNG should be
+  ## used - see nimcrypto or bearssl for good RNG's.
+  ##
+  ## The random number generator in the Nim standard library `random` module is
+  ## not cryptographically secure.
+  ##
+  ## This function may fail to generate a valid key if the RNG fails, in which
+  ## case it will raise a Defect.
+  ##
+  ## In the current version, the random number generation will be called in a
+  ## loop which may be vulnerable to timing attacks. Generate your keys
+  ## elsewhere if this is a issue.
+  var data{.noinit.}: array[SkRawSecretKeySize, byte]
+
+  for _ in 0..1000*1000:
+    rng(data)
+    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.ptr0) == 1:
+      return T(data: data)
+
+  raiseAssert "World ran out of fools and RNG failed to deliver"
 
 func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   ## Load a valid private key, as created by `toRaw`
@@ -379,6 +405,14 @@ proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
     seckey: seckey,
     pubkey: seckey.toPublicKey()
   ))
+
+proc random*(T: type SkKeyPair, rng: FoolproofRng): T =
+  ## Generates new random key pair.
+  let seckey = SkSecretKey.random(rng)
+  T(
+    seckey: seckey,
+    pubkey: seckey.toPublicKey()
+  )
 
 func `==`*(lhs, rhs: SkPublicKey): bool =
   ## Compare Secp256k1 `public key` objects for equality.
