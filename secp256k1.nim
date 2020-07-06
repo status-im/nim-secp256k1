@@ -215,7 +215,8 @@ proc random*(T: type SkSecretKey, rng: FoolproofRng): T =
       return T(data: data)
 
   result = T(data: default(array[32, byte])) # Silence compiler
-  raiseAssert "World ran out of fools and RNG failed to deliver"
+  # All-zeroes all the time for example will break this function
+  raiseAssert "RNG not giving random enough bytes, can't create valid key"
 
 func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   ## Load a valid private key, as created by `toRaw`
