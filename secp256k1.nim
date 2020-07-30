@@ -11,7 +11,7 @@
 
 import
   strformat, typetraits,
-  stew/[byteutils, objects, results],
+  stew/[byteutils, objects, results, ctops],
   ./secp256k1_abi
 
 from nimcrypto/utils import burnMem
@@ -418,15 +418,15 @@ proc random*(T: type SkKeyPair, rng: FoolproofRng): T =
 
 func `==`*(lhs, rhs: SkPublicKey): bool =
   ## Compare Secp256k1 `public key` objects for equality.
-  lhs.toRaw() == rhs.toRaw()
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func `==`*(lhs, rhs: SkSignature): bool =
   ## Compare Secp256k1 `signature` objects for equality.
-  lhs.toRaw() == rhs.toRaw()
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   ## Compare Secp256k1 `recoverable signature` objects for equality.
-  lhs.toRaw() == rhs.toRaw()
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func sign*(key: SkSecretKey, msg: SkMessage): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
