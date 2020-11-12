@@ -517,3 +517,7 @@ proc default*(T: type SkSignature): T {.error: "loophole".}
 proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
 proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
 proc default*(T: type SkEcdhRawSecret): T {.error: "loophole".}
+
+func privKeyTweakAdd*(secretKey: var openArray[byte], tweak: openArray[byte]) =
+  let res = secp256k1_ec_privkey_tweak_add(getContext(), secretKey.ptr0, tweak.ptr0)
+  doAssert res == 1
