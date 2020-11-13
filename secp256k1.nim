@@ -518,6 +518,16 @@ proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
 proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
 proc default*(T: type SkEcdhRawSecret): T {.error: "loophole".}
 
-func privKeyTweakAdd*(secretKey: var openArray[byte], tweak: openArray[byte]) =
-  let res = secp256k1_ec_privkey_tweak_add(getContext(), secretKey.ptr0, tweak.ptr0)
-  doAssert res == 1
+func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
+    let res = secp256k1_ec_privkey_tweak_add(secp256k1_context_no_precomp, secretKey.data.ptr0, tweak.ptr0)
+    if res != 1:
+      return err("Tweak out of range, or invalid private key")
+    return ok()
+
+func tweakMul*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
+  {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
+    let res = secp256k1_ec_privkey_tweak_mul(secp256k1_context_no_precomp, secretKey.data.ptr0, tweak.ptr0)
+    if res != 1:
+      return err("Tweak out of range, or equal to zero")
+    return ok()
