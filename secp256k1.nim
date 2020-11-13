@@ -522,12 +522,14 @@ func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[voi
   {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ec_privkey_tweak_add(secp256k1_context_no_precomp, secretKey.data.ptr0, tweak.ptr0)
     if res != 1:
-      return err("Tweak out of range, or invalid private key")
-    return ok()
+      err("Tweak out of range, or invalid private key")
+    else:
+      ok()
 
 func tweakMul*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
   {.noSideEffect.}: # secp256k1_context_no_precomp is actually const, see above
     let res = secp256k1_ec_privkey_tweak_mul(secp256k1_context_no_precomp, secretKey.data.ptr0, tweak.ptr0)
     if res != 1:
-      return err("Tweak out of range, or equal to zero")
-    return ok()
+      err("Tweak out of range, or equal to zero")
+    else:
+      ok()
