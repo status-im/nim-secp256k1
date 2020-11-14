@@ -74,12 +74,19 @@ const
 
 var secp256k1_context_no_precomp_imp {.
   importc: "secp256k1_context_no_precomp".}: ptr secp256k1_context
-let secp256k1_context_no_precomp* = secp256k1_context_no_precomp_imp
 
 var secp256k1_ecdh_hash_function_default_imp {.
   importc: "secp256k1_ecdh_hash_function_default".}: secp256k1_ecdh_hash_function
-let secp256k1_ecdh_hash_function_default* =
-  secp256k1_ecdh_hash_function_default_imp
+
+template secp256k1_context_no_precomp*: ptr secp256k1_context =
+  # This is really a constant
+  {.noSideEffect.}:
+    secp256k1_context_no_precomp_imp
+
+template secp256k1_ecdh_hash_function_default*: secp256k1_ecdh_hash_function =
+  # This is really a constant
+  {.noSideEffect.}:
+    secp256k1_ecdh_hash_function_default_imp
 
 proc secp256k1_context_create*(
   flags: cuint): ptr secp256k1_context {.secp.}
@@ -282,12 +289,11 @@ proc secp256k1_ecdsa_recoverable_signature_parse_compact*(
   sig: ptr secp256k1_ecdsa_recoverable_signature;
   input64: ptr cuchar, recid: cint): cint {.secp.}
 
-proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
+func secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
                      pubkey: ptr secp256k1_pubkey;
                      privkey: ptr cuchar,
                      hashfp: secp256k1_ecdh_hash_function,
-                     data: pointer
-                     ): cint {.secp.}
+                     data: pointer): cint {.secp.}
   ## Compute an EC Diffie-Hellman secret in constant time
   ## Returns: 1: exponentiation was successful
   ##          0: scalar was invalid (zero or overflow)
@@ -300,11 +306,10 @@ proc secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
   ##
 
 template secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr cuchar;
-                     pubkey: ptr secp256k1_pubkey;
-                     privkey: ptr cuchar
-                     ): cint =
+                         pubkey: ptr secp256k1_pubkey;
+                         privkey: ptr cuchar): cint =
   secp256k1_ecdh(ctx, output32, pubkey, privkey,
-    secp256k1_ecdh_hash_function_default, nil)
+    secp256k1_ecdh_hash_function_default(), nil)
 
 proc secp256k1_ecdh_raw*(ctx: ptr secp256k1_context; output32: ptr cuchar;
                          pubkey: ptr secp256k1_pubkey;
