@@ -88,9 +88,11 @@ type
     ## Representation of recoverable signature.
     data: secp256k1_ecdsa_recoverable_signature
 
-  SkContext* = ref object
+  SkContextValue* = object
     ## Representation of Secp256k1 context object.
     context: ptr secp256k1_context
+
+  SkContext* = ref SkContextValue
 
   SkMessage* = distinct array[SkMessageSize, byte]
     ## Message that can be signed or verified
@@ -105,6 +107,10 @@ type
     data*: array[SkEcdhRawSecretSize, byte]
 
   SkResult*[T] = Result[T, cstring]
+
+proc `=destroy`(ctx: var SkContextValue) =
+  if not(isNil(ctx.context)):
+    secp256k1_context_destroy(ctx.context)
 
 ##
 ## Private procedures interface
@@ -132,14 +138,9 @@ template ptr0(v: array|openArray): ptr cuchar =
 template ptr0(v: SkMessage): ptr cuchar =
   ptr0(distinctBase(v))
 
-func shutdownLibsecp256k1(ctx: SkContext) =
-  # TODO: use destructor when finalizer are deprecated for destructors
-  if not(isNil(ctx.context)):
-    secp256k1_context_destroy(ctx.context)
-
 proc newSkContext(): SkContext =
   ## Create new Secp256k1 context object.
-  new(result, shutdownLibsecp256k1)
+  new result
   let flags = cuint(SECP256K1_CONTEXT_VERIFY or SECP256K1_CONTEXT_SIGN)
   result.context = secp256k1_context_create(flags)
   secp256k1_context_set_illegal_callback(
