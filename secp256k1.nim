@@ -88,7 +88,7 @@ type
     ## Representation of recoverable signature.
     data: secp256k1_ecdsa_recoverable_signature
 
-  SkContext* = ref object
+  SkContext = object
     ## Representation of Secp256k1 context object.
     context: ptr secp256k1_context
 
@@ -132,14 +132,21 @@ template ptr0(v: array|openArray): ptr cuchar =
 template ptr0(v: SkMessage): ptr cuchar =
   ptr0(distinctBase(v))
 
-func shutdownLibsecp256k1(ctx: SkContext) =
-  # TODO: use destructor when finalizer are deprecated for destructors
-  if not(isNil(ctx.context)):
-    secp256k1_context_destroy(ctx.context)
+proc releaseThread*(T: type SkContext): T =
+  if not isNil(secpContext.context):
+    secp256k1_context_destroy(secpContext.context)
+    secpContext.context = nil
 
-proc newSkContext(): SkContext =
-  ## Create new Secp256k1 context object.
-  new(result, shutdownLibsecp256k1)
+proc init(T: type SkContext): T =
+  ## Create new Secp256k1 context object - when no longer needed, it should be
+  ## destroyed
+
+  # TODO We _should_ release the context on thread shutdown but there's no
+  #      reliable way to do that short of doing it manually, which the code is
+  #      not really prepared for - unfortunately, nim finalizers are broken:
+  #      https://github.com/nim-lang/Nim/issues/4851
+  #      A workaround is to call SkContext.releaseThread() on thread end - this
+  #      will become a no-op when the issue is fixed
   let flags = cuint(SECP256K1_CONTEXT_VERIFY or SECP256K1_CONTEXT_SIGN)
   result.context = secp256k1_context_create(flags)
   secp256k1_context_set_illegal_callback(
@@ -156,8 +163,8 @@ func getContext(): ptr secp256k1_context =
     #      Technically, it should be possible to precompute a static context
     #      at compile time and use that instead, which would turn this into
     #      a truly side-effect-free function, instead of an as-if-free one.
-    if isNil(secpContext):
-      secpContext = newSkContext()
+    if isNil(secpContext.context):
+      secpContext = SkContext.init()
     secpContext.context
 
 func fromHex*(T: type seq[byte], s: string): SkResult[T] =
