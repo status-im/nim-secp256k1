@@ -150,9 +150,9 @@ proc init(T: type SkContext): T =
   let flags = cuint(SECP256K1_CONTEXT_VERIFY or SECP256K1_CONTEXT_SIGN)
   result.context = secp256k1_context_create(flags)
   secp256k1_context_set_illegal_callback(
-    result.context, illegalCallback, cast[pointer](result))
+    result.context, illegalCallback, nil)
   secp256k1_context_set_error_callback(
-    result.context, errorCallback, cast[pointer](result))
+    result.context, errorCallback, nil)
 
 func getContext(): ptr secp256k1_context =
   ## Get current `EccContext`
