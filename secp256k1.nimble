@@ -11,6 +11,11 @@ requires "nim >= 1.2.0"
 requires "stew"
 requires "nimcrypto"
 
+proc getLang(): string =
+  result = "c"
+  if existsEnv"TEST_LANG":
+    result = getEnv"TEST_LANG"
+
 proc test(name: string, lang: string = "c") =
   if not dirExists "build":
     mkDir "build"
@@ -20,4 +25,4 @@ proc test(name: string, lang: string = "c") =
   setCommand lang, "tests/" & name & ".nim"
 
 task test, "Tests":
-  test "all_tests"
+  test "all_tests", getLang()
