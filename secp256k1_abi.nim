@@ -1,12 +1,12 @@
 import strutils
-from os import DirSep, quoteShell
+from os import DirSep, AltSep, quoteShell
 
 const
-  wrapperPath = currentSourcePath.rsplit(DirSep, 1)[0] & DirSep &
-                "secp256k1_wrapper"
-  internalPath = wrapperPath & DirSep & "secp256k1"
-  srcPath = internalPath & DirSep & "src"
-  secpSrc = srcPath & DirSep & "secp256k1.c"
+  wrapperPath = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0] &
+                "/secp256k1_wrapper"
+  internalPath = wrapperPath & "/secp256k1"
+  srcPath = internalPath & "/src"
+  secpSrc = srcPath & "/secp256k1.c"
 
 {.passC: "-I" & quoteShell(wrapperPath).}
 {.passC: "-I" & quoteShell(internalPath).}
