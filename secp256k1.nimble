@@ -11,18 +11,16 @@ requires "nim >= 1.2.0"
 requires "stew"
 requires "nimcrypto"
 
-proc getLang(): string =
-  result = "c"
+proc test(env, path: string) =
+  # Compilation language is controlled by TEST_LANG
+  var lang = "c"
   if existsEnv"TEST_LANG":
-    result = getEnv"TEST_LANG"
+    lang = getEnv"TEST_LANG"
 
-proc test(name: string, lang: string = "c") =
-  if not dirExists "build":
-    mkDir "build"
-  --run
-  --threads:on
-  switch("out", ("./build/" & name))
-  setCommand lang, "tests/" & name & ".nim"
+  exec "nim " & lang & " " & env &
+    " -r -f --hints:off --skipParentCfg " & path
 
 task test, "Tests":
-  test "all_tests", getLang()
+  test "--threads:on", "tests/all_tests"
+  test "--threads:off", "tests/all_tests"
+
