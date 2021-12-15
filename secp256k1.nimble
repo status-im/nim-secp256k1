@@ -1,7 +1,7 @@
 mode = ScriptMode.Verbose
 
 packageName   = "secp256k1"
-version       = "0.5.1"
+version       = "0.5.2"
 author        = "Status Research & Development GmbH"
 description   = "A wrapper for the libsecp256k1 C library"
 license       = "Apache License 2.0"
@@ -18,7 +18,7 @@ proc test(env, path: string) =
     lang = getEnv"TEST_LANG"
 
   exec "nim " & lang & " " & env &
-    " -r -f --hints:off --skipParentCfg " & path
+    " -r -f --hints:off --styleCheck:usages --styleCheck:error --skipParentCfg " & path
 
 task test, "Tests":
   test "--threads:on", "tests/all_tests"
