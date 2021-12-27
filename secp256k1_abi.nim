@@ -8,13 +8,13 @@ const
   srcPath = internalPath & "/src"
   secpSrc = srcPath & "/secp256k1.c"
 
-{.passC: "-I" & quoteShell(wrapperPath).}
-{.passC: "-I" & quoteShell(internalPath).}
-{.passC: "-I" & quoteShell(srcPath).}
-{.passC: "-DHAVE_CONFIG_H".}
+{.passc: "-I" & quoteShell(wrapperPath).}
+{.passc: "-I" & quoteShell(internalPath).}
+{.passc: "-I" & quoteShell(srcPath).}
+{.passc: "-DHAVE_CONFIG_H".}
 
 when defined(gcc) or defined(clang):
-  {.passC: "-DHAVE_BUILTIN_EXPECT"}
+  {.passc: "-DHAVE_BUILTIN_EXPECT"}
 
 {.compile: secpSrc.}
 

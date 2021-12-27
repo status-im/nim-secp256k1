@@ -317,7 +317,7 @@ func fromRaw*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
 
   ok(T(data: sig))
 
-func fromDer*(T: type SkSignature, data: openarray[byte]): SkResult[T] =
+func fromDer*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
   ## Initialize Secp256k1 `signature` ``sig`` from DER
   ## representation ``data``.
   if len(data) < 1:
@@ -341,7 +341,7 @@ func toRaw*(sig: SkSignature): array[SkRawSignatureSize, byte] =
     secp256k1_context_no_precomp, result.ptr0, unsafeAddr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
 
-func toDer*(sig: SkSignature, data: var openarray[byte]): int =
+func toDer*(sig: SkSignature, data: var openArray[byte]): int =
   ## Serialize Secp256k1 `signature` ``sig`` to raw binary form and store it
   ## to ``data``.
   ##
