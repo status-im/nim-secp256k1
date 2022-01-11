@@ -11,14 +11,10 @@ requires "nim >= 1.2.0"
 requires "stew"
 requires "nimcrypto"
 
-proc test(env, path: string) =
-  # Compilation language is controlled by TEST_LANG
-  var lang = "c"
-  if existsEnv"TEST_LANG":
-    lang = getEnv"TEST_LANG"
-
-  exec "nim " & lang & " " & env &
-    " -r -f --hints:off --styleCheck:usages --styleCheck:error --skipParentCfg " & path
+proc test(args, path: string) =
+  # style checking can't generate errors, because nimcrypto mixes styles
+  exec "nim " & getEnv("TEST_LANG", "c") & " " & getEnv("NIMFLAGS")  & " " & args &
+    " -r -f --hints:off --styleCheck:usages --styleCheck:hint --skipParentCfg " & path
 
 task test, "Tests":
   test "--threads:on", "tests/all_tests"
