@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "packages": {
+    "nimcrypto": {
+      "version": "0.5.4",
+      "vcsRevision": "a5742a9a214ac33f91615f3862c7b099aec43b00",
+      "url": "https://github.com/cheatfate/nimcrypto",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "f76c87707cd4e96355b8bb6ef27e7f8b0aac1e08"
+      }
+    },
+    "stew": {
+      "version": "0.1.0",
+      "vcsRevision": "cdb1f213d073fd2ecbdaf35a866417657da9294c",
+      "url": "https://github.com/status-im/nim-stew",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "3dd9e4ec78d906b59b6f9bcf74f5f8fa6b5c24fe"
+      }
+    }
+  }
+}
