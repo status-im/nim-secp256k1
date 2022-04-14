@@ -3,7 +3,7 @@ from os import DirSep, AltSep, quoteShell
 
 const
   wrapperPath = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0] &
-                "/secp256k1_wrapper"
+                "/../secp256k1_wrapper"
   internalPath = wrapperPath & "/secp256k1"
   srcPath = internalPath & "/src"
   secpSrc = srcPath & "/secp256k1.c"

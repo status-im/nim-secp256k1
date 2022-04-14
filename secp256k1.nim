@@ -12,7 +12,7 @@
 import
   strformat, typetraits,
   stew/[byteutils, objects, results, ctops],
-  ./secp256k1_abi
+  ./secp256k1/abi
 
 from nimcrypto/utils import burnMem
 
@@ -21,7 +21,7 @@ export results
 # Implementation notes
 #
 # The goal of this wrapper is to create a thin layer on top of the API presented
-# in secp256k1_abi, exploiting some of its regulatities to make it slightly more
+# in secp256k1/abi, exploiting some of its regulatities to make it slightly more
 # convenient to use from Nim
 #
 # * Types like keys and signatures are guaranteed to hold valid values which
