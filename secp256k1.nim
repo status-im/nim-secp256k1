@@ -372,6 +372,9 @@ func fromRaw*(T: type SkRecoverableSignature, data: openArray[byte]): SkResult[T
       static(&"secp: recoverable signature must be {SkRawRecoverableSignatureSize} bytes"))
 
   let recid = cint(data[64])
+  if recid < 0 or recid > 3:
+    return err("secp: recoverable signature's recid must be >= 0 and <= 3")
+
   var sig {.noinit.}: secp256k1_ecdsa_recoverable_signature
   if secp256k1_ecdsa_recoverable_signature_parse_compact(
       secp256k1_context_no_precomp, addr sig, data.ptr0, recid) != 1:
