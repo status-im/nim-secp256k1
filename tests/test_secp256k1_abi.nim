@@ -13,20 +13,20 @@ suite "ABI tests":
     var bSecretKey: array[32, uint8]
     var aPublicKey: secp256k1_pubkey
     var bPublicKey: secp256k1_pubkey
-    var data1: array[32, cuchar]
-    var data2: array[32, cuchar]
+    var data1: array[32, byte]
+    var data2: array[32, byte]
     aSecretKey[31] = 1'u8
     bSecretKey[31] = 2'u8
     let ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN)
     check ctx != nil
     check secp256k1_ec_pubkey_create(ctx, addr aPublicKey,
-                                     cast[ptr cuchar](addr aSecretKey[0])) == 1
+                                     cast[ptr byte](addr aSecretKey[0])) == 1
     check secp256k1_ec_pubkey_create(ctx, addr bPublicKey,
-                                     cast[ptr cuchar](addr bSecretKey[0])) == 1
+                                     cast[ptr byte](addr bSecretKey[0])) == 1
     check secp256k1_ecdh(ctx, addr data1[0],
                          addr bPublicKey,
-                         cast[ptr cuchar](addr aSecretKey[0])) == 1
+                         cast[ptr byte](addr aSecretKey[0])) == 1
     check secp256k1_ecdh(ctx, addr data2[0],
                          addr aPublicKey,
-                         cast[ptr cuchar](addr bSecretKey[0])) == 1
+                         cast[ptr byte](addr bSecretKey[0])) == 1
     check(data1 == data2)
