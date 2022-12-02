@@ -1,0 +1,62 @@
+pipeline {
+  agent { label 'macos && aarch64' }
+
+  options {
+    disableConcurrentBuilds()
+    /* manage how many builds we keep */
+    buildDiscarder(logRotator(
+      numToKeepStr: '20',
+      daysToKeepStr: '30',
+    ))
+  }
+
+  environment {
+    /* Nim has to be built in Compiler stage. */
+    PATH = "${PATH}:${WORKSPACE}/ci/nim/bin"
+  }
+
+  stages {
+    stage('Modules') {
+      steps {
+        sh 'git submodule update --init'
+      }
+    }
+
+    stage('Compiler') {
+      steps {
+        sh 'make -C ci compiler'
+      }
+    }
+
+    stage('Deps') {
+      steps {
+        sh 'nimble install -y --depsOnly'
+      }
+    }
+
+    stage('Tests') {
+      parallel {
+        stage('C') {
+          environment {
+            NIMLANG = 'c'
+          }
+          steps {
+            sh 'nimble test'
+          }
+        }
+
+        stage('C++') {
+          environment {
+            NIMLANG = 'cpp'
+          }
+          steps {
+            sh 'nimble test'
+          }
+        }
+      }
+    }
+  }
+  post {
+    always { cleanWs() }
+  }
+}

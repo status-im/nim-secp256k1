@@ -3,3 +3,7 @@ build/
 
 nimble.develop
 nimble.paths
+
+ci/build_nim.sh
+ci/NimBinaries/
+ci/nim/
