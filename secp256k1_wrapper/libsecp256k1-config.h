@@ -9,10 +9,10 @@
 /* #undef COVERAGE */
 
 /* Set ecmult gen precision bits */
-#define ECMULT_GEN_PREC_BITS 4
+/* #define ECMULT_GEN_PREC_BITS 4 */
 
 /* Set window size for ecmult precomputation */
-#define ECMULT_WINDOW_SIZE 15
+/* #define ECMULT_WINDOW_SIZE 15 */
 
 /* Define this symbol to enable the ECDH module */
 #define ENABLE_MODULE_ECDH 1
@@ -90,7 +90,7 @@
 #define STDC_HEADERS 1
 
 /* Define this symbol to enable x86_64 assembly optimizations */
-#define USE_ASM_X86_64 1
+/* #define USE_ASM_X86_64 1 */
 
 /* Define this symbol if an external (non-inline) assembly implementation is
    used */
