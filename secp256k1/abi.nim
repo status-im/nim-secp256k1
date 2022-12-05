@@ -12,8 +12,8 @@ const
 {.passc: "-I" & quoteShell(srcPath).}
 {.passc: "-DHAVE_CONFIG_H".}
 
-when defined(gcc) or defined(clang):
-  {.passc: "-DHAVE_BUILTIN_EXPECT"}
+when defined(amd64) and (defined(gcc) or defined(clang)):
+  {.passc: "-DUSE_ASM_X86_64"}
 
 {.compile: srcPath & "/secp256k1.c".}
 {.compile: srcPath & "/precomputed_ecmult.c".}
