@@ -18,13 +18,13 @@
 #define ENABLE_MODULE_ECDH 1
 
 /* Define this symbol to enable the extrakeys module */
-/* #undef ENABLE_MODULE_EXTRAKEYS */
+#define ENABLE_MODULE_EXTRAKEYS 1
 
 /* Define this symbol to enable the ECDSA pubkey recovery module */
 #define ENABLE_MODULE_RECOVERY 1
 
 /* Define this symbol to enable the schnorrsig module */
-/* #undef ENABLE_MODULE_SCHNORRSIG */
+#define ENABLE_MODULE_SCHNORRSIG 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
