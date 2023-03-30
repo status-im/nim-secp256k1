@@ -223,7 +223,7 @@ var secp256k1_nonce_function_default*: secp256k1_nonce_function
 ## Recovery interface follows
 
 type
-  secp256k1_ecdsa_recoverable_signature* = object
+  secp256k1_ecdsa_recoverable_signature* {.bycopy.} = object
     ## Opaque data structured that holds a parsed ECDSA signature,
     ## supporting pubkey recovery.
     ## The exact representation of data inside is implementation defined and not
