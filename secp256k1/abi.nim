@@ -356,8 +356,8 @@ type
     data*: array[96, uint8]
 
 proc secp256k1_xonly_pubkey_parse*(ctx: ptr secp256k1_context;
-                                  pubkey: ptr secp256k1_xonly_pubkey;
-                                  input32: ptr byte): cint {.secp.}
+                                   pubkey: ptr secp256k1_xonly_pubkey;
+                                   input32: ptr byte): cint {.secp.}
   ## Parse a 32-byte sequence into a xonly_pubkey object.
   ##
   ## Returns: 1 if the public key was fully valid.
@@ -370,8 +370,8 @@ proc secp256k1_xonly_pubkey_parse*(ctx: ptr secp256k1_context;
   ##
 
 proc secp256k1_xonly_pubkey_serialize*(ctx: ptr secp256k1_context;
-                                      output32: ptr byte;
-                                      pubkey: ptr secp256k1_xonly_pubkey): cint {.secp.}
+                                       output32: ptr byte;
+                                       pubkey: ptr secp256k1_xonly_pubkey): cint {.secp.}
   ## Serialize an xonly_pubkey object into a 32-byte sequence.
   ##
   ## Returns: 1 always.
@@ -398,9 +398,9 @@ proc secp256k1_xonly_pubkey_from_pubkey*(ctx: ptr secp256k1_context;
   ##
 
 proc secp256k1_xonly_pubkey_tweak_add*(ctx: ptr secp256k1_context;
-                                      output_pubkey: ptr secp256k1_pubkey;
-                                      internal_pubkey: ptr secp256k1_xonly_pubkey;
-                                      tweak32: ptr byte): cint {.secp.}
+                                       output_pubkey: ptr secp256k1_pubkey;
+                                       internal_pubkey: ptr secp256k1_xonly_pubkey;
+                                       tweak32: ptr byte): cint {.secp.}
   ## Tweak an x-only public key by adding the generator multiplied with tweak32
   ## to it.
   ##
@@ -567,7 +567,7 @@ type
     data*: pointer
 
 const
-  SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC*: array[4, uint8] = [ 0xda, 0x6f, 0xb3, 0x8c ]
+  SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC* = [ 0xda'u8 , 0x6f, 0xb3, 0x8c ]
 
 type
   secp256k1_schnorrsig_extraparams* {.bycopy.} = object
