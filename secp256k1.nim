@@ -80,8 +80,7 @@ type
 
   SkKeyPair* = object
     ## Representation of private/public keys pair.
-    seckey*: SkSecretKey
-    pubkey*: SkPublicKey
+    data*: secp256k1_keypair
 
   SkSignature* {.requiresInit.} = object
     ## Representation of non-recoverable signature.
@@ -399,20 +398,40 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
 func toHex*(sig: SkRecoverableSignature): string =
   toHex(toRaw(sig))
 
+func pubkey*(kp: SkKeyPair): SkPublicKey =
+  var key {.noinit.}: secp256k1_pubkey
+  let res = secp256k1_keypair_pub(secp256k1_context_no_precomp, addr key, addr kp.data)
+  doAssert res == 1, "Can't fail, per documentation"
+  SkPublicKey(data: key)
+
+func seckey*(kp: SkKeyPair): SkSecretKey =
+  var key {.noinit.}: array[SkRawSecretKeySize, byte]
+  let res = secp256k1_keypair_sec(secp256k1_context_no_precomp, key.baseAddr, addr kp.data)
+  doAssert res == 1, "Can't fail, per documentation"
+  SkSecretKey(data: key)
+
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
   let seckey = ? SkSecretKey.random(rng)
+
+  var keypair {.noinit.}: secp256k1_keypair
+  let res = secp256k1_keypair_create(getContext(), addr keypair, addr seckey.data[0])
+  doAssert res == 1, "Can't fail, only fails if secret key is invalid but it was freshly generated."
+
   ok(T(
-    seckey: seckey,
-    pubkey: seckey.toPublicKey()
+    data: keypair
   ))
 
 proc random*(T: type SkKeyPair, rng: FoolproofRng): T =
   ## Generates new random key pair.
   let seckey = SkSecretKey.random(rng)
+
+  var keypair {.noinit.}: secp256k1_keypair
+  let res = secp256k1_keypair_create(getContext(), addr keypair, addr seckey.data[0])
+  doAssert res == 1, "Can't fail, only fails if secret key is invalid but it was freshly generated."
+
   T(
-    seckey: seckey,
-    pubkey: seckey.toPublicKey()
+    data: keypair
   )
 
 func `==`*(lhs, rhs: SkPublicKey): bool =

@@ -57,3 +57,7 @@ suite "secp256k1":
       SkMessage.fromBytes([]).isErr()
       SkMessage.fromBytes([0'u8]).isErr()
       SkMessage.fromBytes(array[32, byte](msg0)).isOk()
+
+  test "Keypairs":
+    check:
+      SkKeyPair.random(workingRng).isOk()
