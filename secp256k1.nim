@@ -410,6 +410,17 @@ func seckey*(kp: SkKeyPair): SkSecretKey =
   doAssert res == 1, "Can't fail, per documentation"
   SkSecretKey(data: key)
 
+func `seckey=`*(kp: var SkKeyPair, sk: SkSecretKey) =
+  var newKp: SkKeyPair
+  let res = secp256k1_keypair_create(getContext(), addr newKp.data, sk.data.baseAddr)
+  if res != 1:
+    discard
+    #TODO: Raise an exception? Old behaviour would just set the secret key to an invalid key.
+  else:
+    kp = newKp
+
+func `pubkey=`*(kp: var SkKeyPair, sk: SkPublicKey) {.deprecated: "Set the seckey instead".} = discard
+
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
   let seckey = ? SkSecretKey.random(rng)
@@ -445,6 +456,10 @@ func `==`*(lhs, rhs: SkSignature): bool =
 func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   ## Compare Secp256k1 `recoverable signature` objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
+
+func `==`*(lhs, rhs: SkKeyPair): bool =
+  lhs.pubkey == rhs.pubkey and
+  lhs.seckey == rhs.seckey
 
 func sign*(key: SkSecretKey, msg: SkMessage): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
@@ -499,6 +514,12 @@ func ecdhRaw*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhRawSecret =
 
 func clear*(v: var SkSecretKey) =
   ## Wipe and clear memory of Secp256k1 `private key`.
+  ## After calling this function, the key is invalid and using it elsewhere will
+  ## result in undefined behaviour or Defect
+  burnMem(v.data)
+
+func clear*(v: var SkKeyPair) =
+  ## Wipe and clear memory of Secp256k1 `keypair`.
   ## After calling this function, the key is invalid and using it elsewhere will
   ## result in undefined behaviour or Defect
   burnMem(v.data)
