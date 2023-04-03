@@ -80,7 +80,7 @@ type
 
   SkKeyPair* = object
     ## Representation of private/public keys pair.
-    data*: secp256k1_keypair
+    data: secp256k1_keypair
 
   SkSignature* {.requiresInit.} = object
     ## Representation of non-recoverable signature.
@@ -413,11 +413,11 @@ func seckey*(kp: SkKeyPair): SkSecretKey =
 func `seckey=`*(kp: var SkKeyPair, sk: SkSecretKey) =
   var newKp: SkKeyPair
   let res = secp256k1_keypair_create(getContext(), addr newKp.data, sk.data.baseAddr)
-  if res != 1:
-    discard
-    #TODO: Raise an exception? Old behaviour would just set the secret key to an invalid key.
-  else:
+  if res == 1:
     kp = newKp
+  else:
+    #TODO: Raise an exception? Old behaviour would just set the secret key to an invalid key.
+    discard
 
 func `pubkey=`*(kp: var SkKeyPair, sk: SkPublicKey) {.deprecated: "Set the seckey instead".} = discard
 
@@ -458,6 +458,7 @@ func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func `==`*(lhs, rhs: SkKeyPair): bool =
+  ## Compare Secp256k1 `keypair` objects for equality.
   lhs.pubkey == rhs.pubkey and
   lhs.seckey == rhs.seckey
 
