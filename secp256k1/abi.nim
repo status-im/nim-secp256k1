@@ -223,7 +223,7 @@ var secp256k1_nonce_function_default*: secp256k1_nonce_function
 ## Recovery interface follows
 
 type
-  secp256k1_ecdsa_recoverable_signature* {.bycopy.} = object
+  secp256k1_ecdsa_recoverable_signature* = object
     ## Opaque data structured that holds a parsed ECDSA signature,
     ## supporting pubkey recovery.
     ## The exact representation of data inside is implementation defined and not
@@ -330,7 +330,7 @@ proc secp256k1_ecdh_raw*(ctx: ptr secp256k1_context; output32: ptr byte;
 ## Multikey interface follows
 
 type
-  secp256k1_xonly_pubkey* {.bycopy.} = object
+  secp256k1_xonly_pubkey* = object
     ## Opaque data structure that holds a parsed and valid "x-only" public key.
     ## An x-only pubkey encodes a point whose Y coordinate is even. It is
     ## serialized using only its X coordinate (32 bytes). See BIP-340 for more
@@ -345,7 +345,7 @@ type
     ##
     data*: array[64, uint8]
 
-  secp256k1_keypair* {.bycopy.} = object
+  secp256k1_keypair* = object
     ## Opaque data structure that holds a keypair consisting of a secret and a
     ## public key.
     ##
@@ -570,7 +570,7 @@ const
   SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC* = [ 0xda'u8 , 0x6f, 0xb3, 0x8c ]
 
 type
-  secp256k1_schnorrsig_extraparams* {.bycopy.} = object
+  secp256k1_schnorrsig_extraparams* = object
     ## Data structure that contains additional arguments for schnorrsig_sign_custom.
     ##
     ## Members:
