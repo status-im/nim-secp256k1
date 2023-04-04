@@ -16,11 +16,11 @@ const
     1'u8, 0, 0, 0, 0, 0, 0, 0,
   ])
   msg2 = array[40, byte]([
-    1'u8, 0, 0, 0, 0, 0, 0, 0,
-    1'u8, 0, 0, 0, 0, 0, 0, 0,
-    1'u8, 0, 0, 0, 0, 0, 0, 0,
-    1'u8, 0, 0, 0, 0, 0, 0, 0,
-    1'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
+    0'u8, 0, 0, 0, 0, 0, 0, 0,
   ])
 
 proc workingRng(data: var openArray[byte]): bool =
@@ -50,10 +50,9 @@ suite "secp256k1":
       otherPk = SkSecretKey.random(workingRng)[].toPublicKey()
       sig = sign(sk, msg0)
       sig2 = signRecoverable(sk, msg0)
-      sig3 = signSchnorr(sk, msg0)
-      sig4 = signSchnorr(sk, msg2)
-      sig5 = signSchnorr(sk, msg0, workingRng)[]
-      sig6 = signSchnorr(sk, cast[array[SkMessageSize, byte]](msg0), workingRng)[]
+      sig3 = signSchnorr(sk, msg0, workingRng)[]
+      sig4 = signSchnorr(sk, cast[array[SkMessageSize, byte]](msg0), workingRng)[]
+      sig5 = signSchnorr(sk, msg2, workingRng)[]
 
     check:
       verify(sig, msg0, pk)
@@ -63,9 +62,8 @@ suite "secp256k1":
       recover(sig2, msg1)[] != pk
       SkSignature.fromDer(sig.toDer())[].toHex() == sig.toHex()
       verify(sig3, msg0, pk)
-      verify(sig4, msg2, pk)
-      verify(sig5, msg0, pk)
-      sig5 == sig6
+      sig3 == sig4
+      verify(sig5, msg2, pk)
 
   test "Message":
     check:
