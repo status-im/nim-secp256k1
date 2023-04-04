@@ -559,6 +559,7 @@ proc default*(T: type SkPublicKey): T {.error: "loophole".}
 proc default*(T: type SkSecretKey): T {.error: "loophole".}
 proc default*(T: type SkSignature): T {.error: "loophole".}
 proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
+proc default*(T: type SkSchnorrSignature): T {.error: "loophole".}
 proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
 proc default*(T: type SkEcdhRawSecret): T {.error: "loophole".}
 
