@@ -529,7 +529,7 @@ template signSchnorrFoolproofRngImpl(makeKeypair: varargs[untyped]): untyped {.d
 
   result = SkSchnorrSignature(data: default(array[64, byte])) # Silence compiler
   # All-zeroes all the time for example will break this function
-  raiseAssert "RNG not giving random enough bytes, can't create valid key"
+  raiseAssert "RNG not giving random enough bytes, can't create valid sig"
 
 proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: FoolproofRng): SkSchnorrSignature =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.

@@ -437,6 +437,19 @@ const
 
 type
   secp256k1_schnorrsig_extraparams* = object
+    ## Data structure that contains additional arguments for schnorrsig_sign_custom.
+    ##
+    ## Members:
+    ##     magic: set to SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC at initialization
+    ##            and has no other function than making sure the object is
+    ##            initialized.
+    ##   noncefp: pointer to a nonce generation function. If NULL,
+    ##            secp256k1_nonce_function_bip340 is used
+    ##     ndata: pointer to arbitrary data used by the nonce generation function
+    ##            (can be NULL). If it is non-NULL and
+    ##            secp256k1_nonce_function_bip340 is used, then ndata must be a
+    ##            pointer to 32-byte auxiliary randomness as per BIP-340.
+    ##
     magic*: array[4, uint8]
     noncefp*: secp256k1_nonce_function_hardened
     ndata*: pointer
