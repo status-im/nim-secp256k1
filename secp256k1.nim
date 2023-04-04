@@ -497,6 +497,56 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte]): SkSchnorrSignature =
     secp256k1_schnorrsig_sign_custom(
       getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, nil))
 
+template signSchnorrRngImpl(makeKeypair: varargs[untyped]): untyped {.dirty.} =
+  var randbytes: array[32, byte]
+  while rng(randbytes):
+    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, randbytes.baseAddr) == 1:
+      return ok(signSchnorrImpl(makeKeypair))
+  return err("secp: cannot get random bytes for signature")
+
+proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: Rng): SkResult[SkSchnorrSignature] =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data to aid signature security.
+  signSchnorrRngImpl(
+    secp256k1_schnorrsig_sign32(
+      getContext(), data.baseAddr, msg.baseAddr, addr kp, randbytes.baseAddr))
+
+proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[SkSchnorrSignature] =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data to aid signature security.
+  signSchnorrRngImpl:
+    let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, ndata: randbytes.baseAddr)
+    secp256k1_schnorrsig_sign_custom(
+      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp,
+      unsafeAddr extraparams)
+
+template signSchnorrFoolproofRngImpl(makeKeypair: varargs[untyped]): untyped {.dirty.} =
+  var randbytes: array[32, byte]
+  for _ in 0..1000*1000:
+    rng(randbytes)
+    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, randbytes.baseAddr) == 1:
+      return signSchnorrImpl(makeKeypair)
+
+  result = SkSchnorrSignature(data: default(array[64, byte])) # Silence compiler
+  # All-zeroes all the time for example will break this function
+  raiseAssert "RNG not giving random enough bytes, can't create valid key"
+
+proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: FoolproofRng): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data to aid signature security.
+  signSchnorrFoolproofRngImpl(
+    secp256k1_schnorrsig_sign32(
+      getContext(), data.baseAddr, msg.baseAddr, addr kp, randbytes.baseAddr))
+
+proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: FoolproofRng): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data to aid signature security.
+  signSchnorrFoolproofRngImpl:
+    let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, ndata: randbytes.baseAddr)
+    secp256k1_schnorrsig_sign_custom(
+      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp,
+      unsafeAddr extraparams)
+
 func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1

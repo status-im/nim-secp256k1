@@ -52,6 +52,8 @@ suite "secp256k1":
       sig2 = signRecoverable(sk, msg0)
       sig3 = signSchnorr(sk, msg0)
       sig4 = signSchnorr(sk, msg2)
+      sig5 = signSchnorr(sk, msg0, workingRng)[]
+      sig6 = signSchnorr(sk, cast[array[SkMessageSize, byte]](msg0), workingRng)[]
 
     check:
       verify(sig, msg0, pk)
@@ -62,6 +64,8 @@ suite "secp256k1":
       SkSignature.fromDer(sig.toDer())[].toHex() == sig.toHex()
       verify(sig3, msg0, pk)
       verify(sig4, msg2, pk)
+      verify(sig5, msg0, pk)
+      verify(sig6, msg0, pk)
 
   test "Message":
     check:
