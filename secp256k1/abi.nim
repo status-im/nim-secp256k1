@@ -422,7 +422,7 @@ proc secp256k1_keypair_xonly_tweak_add*(ctx: ptr secp256k1_context;
 ## Schnorrsig interface follows
 
 type
-  secp256k1_nonce_function_hardened* {.bycopy.} = object
+  secp256k1_nonce_function_hardened* = object
     nonce32*: ptr byte
     msg*: ptr byte
     msglen*: csize_t
