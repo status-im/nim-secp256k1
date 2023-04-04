@@ -410,6 +410,8 @@ func seckey*(kp: SkKeyPair): SkSecretKey =
   doAssert res == 1, "Can't fail, per documentation"
   SkSecretKey(data: key)
 
+func `pubkey=`*(kp: var SkKeyPair, sk: SkPublicKey) {.deprecated: "Set the seckey instead".} = discard
+
 func `seckey=`*(kp: var SkKeyPair, sk: SkSecretKey) =
   var newKp: SkKeyPair
   let res = secp256k1_keypair_create(getContext(), addr newKp.data, sk.data.baseAddr)
@@ -418,8 +420,6 @@ func `seckey=`*(kp: var SkKeyPair, sk: SkSecretKey) =
   else:
     #TODO: Raise an exception? Old behaviour would just set the secret key to an invalid key.
     discard
-
-func `pubkey=`*(kp: var SkKeyPair, sk: SkPublicKey) {.deprecated: "Set the seckey instead".} = discard
 
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
