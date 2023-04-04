@@ -358,28 +358,10 @@ type
 proc secp256k1_xonly_pubkey_parse*(ctx: ptr secp256k1_context;
                                    pubkey: ptr secp256k1_xonly_pubkey;
                                    input32: ptr byte): cint {.secp.}
-  ## Parse a 32-byte sequence into a xonly_pubkey object.
-  ##
-  ## Returns: 1 if the public key was fully valid.
-  ##          0 if the public key could not be parsed or is invalid.
-  ##
-  ## Args:   ctx: a secp256k1 context object.
-  ## Out: pubkey: pointer to a pubkey object. If 1 is returned, it is set to a
-  ##              parsed version of input. If not, it's set to an invalid value.
-  ## In: input32: pointer to a serialized xonly_pubkey.
-  ##
 
 proc secp256k1_xonly_pubkey_serialize*(ctx: ptr secp256k1_context;
                                        output32: ptr byte;
                                        pubkey: ptr secp256k1_xonly_pubkey): cint {.secp.}
-  ## Serialize an xonly_pubkey object into a 32-byte sequence.
-  ##
-  ## Returns: 1 always.
-  ##
-  ## Args:     ctx: a secp256k1 context object.
-  ## Out: output32: a pointer to a 32-byte array to place the serialized key in.
-  ## In:    pubkey: a pointer to a secp256k1_xonly_pubkey containing an initialized public key.
-  ##
 
 proc secp256k1_xonly_pubkey_from_pubkey*(ctx: ptr secp256k1_context;
                                          xonly_pubkey: ptr secp256k1_xonly_pubkey;
@@ -401,55 +383,12 @@ proc secp256k1_xonly_pubkey_tweak_add*(ctx: ptr secp256k1_context;
                                        output_pubkey: ptr secp256k1_pubkey;
                                        internal_pubkey: ptr secp256k1_xonly_pubkey;
                                        tweak32: ptr byte): cint {.secp.}
-  ## Tweak an x-only public key by adding the generator multiplied with tweak32
-  ## to it.
-  ##
-  ## Note that the resulting point can not in general be represented by an x-only
-  ## pubkey because it may have an odd Y coordinate. Instead, the output_pubkey
-  ## is a normal secp256k1_pubkey.
-  ##
-  ## Returns: 0 if the arguments are invalid or the resulting public key would be
-  ##          invalid (only when the tweak is the negation of the corresponding
-  ##          secret key). 1 otherwise.
-  ##
-  ## Args:           ctx: pointer to a context object initialized for verification.
-  ## Out:  output_pubkey: pointer to a public key to store the result. Will be set
-  ##                      to an invalid value if this function returns 0.
-  ## In: internal_pubkey: pointer to an x-only pubkey to apply the tweak to.
-  ##             tweak32: pointer to a 32-byte tweak. If the tweak is invalid
-  ##                      according to secp256k1_ec_seckey_verify, this function
-  ##                      returns 0. For uniformly random 32-byte arrays the
-  ##                      chance of being invalid is negligible (around 1 in 2^128).
-  ##
 
 proc secp256k1_xonly_pubkey_tweak_add_check*(ctx: ptr secp256k1_context;
                                              tweaked_pubkey32: ptr byte;
                                              tweaked_pk_parity: cint;
                                              internal_pubkey: ptr secp256k1_xonly_pubkey;
                                              tweak32: ptr byte): cint {.secp.}
-  ## Checks that a tweaked pubkey is the result of calling
-  ## secp256k1_xonly_pubkey_tweak_add with internal_pubkey and tweak32.
-  ##
-  ## The tweaked pubkey is represented by its 32-byte x-only serialization and
-  ## its pk_parity, which can both be obtained by converting the result of
-  ## tweak_add to a secp256k1_xonly_pubkey.
-  ##
-  ## Note that this alone does _not_ verify that the tweaked pubkey is a
-  ## commitment. If the tweak is not chosen in a specific way, the tweaked pubkey
-  ## can easily be the result of a different internal_pubkey and tweak.
-  ##
-  ## Returns: 0 if the arguments are invalid or the tweaked pubkey is not the
-  ##          result of tweaking the internal_pubkey with tweak32. 1 otherwise.
-  ## Args:            ctx: pointer to a context object initialized for verification.
-  ## In: tweaked_pubkey32: pointer to a serialized xonly_pubkey.
-  ##    tweaked_pk_parity: the parity of the tweaked pubkey (whose serialization
-  ##                       is passed in as tweaked_pubkey32). This must match the
-  ##                       pk_parity value that is returned when calling
-  ##                       secp256k1_xonly_pubkey with the tweaked pubkey, or
-  ##                       this function will fail.
-  ##      internal_pubkey: pointer to an x-only public key object to apply the tweak to.
-  ##              tweak32: pointer to a 32-byte tweak.
-  ##
 
 proc secp256k1_keypair_create*(ctx: ptr secp256k1_context;
                                keypair: ptr secp256k1_keypair;
@@ -466,97 +405,24 @@ proc secp256k1_keypair_create*(ctx: ptr secp256k1_context;
 proc secp256k1_keypair_sec*(ctx: ptr secp256k1_context;
                             seckey: ptr byte;
                             keypair: ptr secp256k1_keypair): cint {.secp.}
-  ## Get the secret key from a keypair.
-  ##
-  ## Returns: 1 always.
-  ## Args:   ctx: pointer to a context object.
-  ## Out: seckey: pointer to a 32-byte buffer for the secret key.
-  ## In: keypair: pointer to a keypair.
-  ##
 
 proc secp256k1_keypair_pub*(ctx: ptr secp256k1_context;
                             pubkey: ptr secp256k1_pubkey;
                             keypair: ptr secp256k1_keypair): cint {.secp.}
-  ## Get the public key from a keypair.
-  ##
-  ## Returns: 1 always.
-  ## Args:    ctx: pointer to a context object.
-  ## Out: pubkey: pointer to a pubkey object. If 1 is returned, it is set to
-  ##              the keypair public key. If not, it's set to an invalid value.
-  ## In: keypair: pointer to a keypair.
-  ##
 
 proc secp256k1_keypair_xonly_pub*(ctx: ptr secp256k1_context;
                                   pubkey: ptr secp256k1_xonly_pubkey;
                                   pk_parity: ptr cint;
                                   keypair: ptr secp256k1_keypair): cint {.secp.}
-  ## Get the x-only public key from a keypair.
-  ##
-  ## This is the same as calling secp256k1_keypair_pub and then
-  ## secp256k1_xonly_pubkey_from_pubkey.
-  ##
-  ## Returns: 1 always.
-  ## Args:   ctx: pointer to a context object.
-  ## Out: pubkey: pointer to an xonly_pubkey object. If 1 is returned, it is set
-  ##              to the keypair public key after converting it to an
-  ##              xonly_pubkey. If not, it's set to an invalid value.
-  ##   pk_parity: Ignored if NULL. Otherwise, pointer to an integer that will be set to the
-  ##              pk_parity argument of secp256k1_xonly_pubkey_from_pubkey.
-  ## In: keypair: pointer to a keypair.
-  ##
 
 proc secp256k1_keypair_xonly_tweak_add*(ctx: ptr secp256k1_context;
                                         keypair: ptr secp256k1_keypair;
                                         tweak32: ptr byte): cint {.secp.}
-  ## Tweak a keypair by adding tweak32 to the secret key and updating the public
-  ## key accordingly.
-  ##
-  ## Calling this function and then secp256k1_keypair_pub results in the same
-  ## public key as calling secp256k1_keypair_xonly_pub and then
-  ## secp256k1_xonly_pubkey_tweak_add.
-  ##
-  ## Returns: 0 if the arguments are invalid or the resulting keypair would be
-  ##          invalid (only when the tweak is the negation of the keypair's
-  ##          secret key). 1 otherwise.
-  ##
-  ## Args:       ctx: pointer to a context object initialized for verification.
-  ## In/Out: keypair: pointer to a keypair to apply the tweak to. Will be set to
-  ##                  an invalid value if this function returns 0.
-  ## In:     tweak32: pointer to a 32-byte tweak. If the tweak is invalid according
-  ##                  to secp256k1_ec_seckey_verify, this function returns 0. For
-  ##                  uniformly random 32-byte arrays the chance of being invalid
-  ##                  is negligible (around 1 in 2^128).
-  ##
 
 ## Schnorrsig interface follows
 
 type
   secp256k1_nonce_function_hardened* {.bycopy.} = object
-    ## A pointer to a function to deterministically generate a nonce.
-    ##
-    ## Same as secp256k1_nonce function with the exception of accepting an
-    ## additional pubkey argument and not requiring an attempt argument. The pubkey
-    ## argument can protect signature schemes with key-prefixed challenge hash
-    ## inputs against reusing the nonce when signing with the wrong precomputed
-    ## pubkey.
-    ##
-    ## Returns: 1 if a nonce was successfully generated. 0 will cause signing to
-    ##          return an error.
-    ## Out:  nonce32: pointer to a 32-byte array to be filled by the function
-    ## In:       msg: the message being verified. Is NULL if and only if msglen
-    ##                is 0.
-    ##        msglen: the length of the message
-    ##         key32: pointer to a 32-byte secret key (will not be NULL)
-    ##    xonly_pk32: the 32-byte serialized xonly pubkey corresponding to key32
-    ##                (will not be NULL)
-    ##          algo: pointer to an array describing the signature
-    ##                algorithm (will not be NULL)
-    ##       algolen: the length of the algo array
-    ##          data: arbitrary data pointer that is passed through
-    ##
-    ## Except for test cases, this function should compute some cryptographic hash of
-    ## the message, the key, the pubkey, the algorithm description, and data.
-    ##
     nonce32*: ptr byte
     msg*: ptr byte
     msglen*: csize_t
@@ -571,19 +437,6 @@ const
 
 type
   secp256k1_schnorrsig_extraparams* = object
-    ## Data structure that contains additional arguments for schnorrsig_sign_custom.
-    ##
-    ## Members:
-    ##     magic: set to SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC at initialization
-    ##            and has no other function than making sure the object is
-    ##            initialized.
-    ##   noncefp: pointer to a nonce generation function. If NULL,
-    ##            secp256k1_nonce_function_bip340 is used
-    ##     ndata: pointer to arbitrary data used by the nonce generation function
-    ##            (can be NULL). If it is non-NULL and
-    ##            secp256k1_nonce_function_bip340 is used, then ndata must be a
-    ##            pointer to 32-byte auxiliary randomness as per BIP-340.
-    ##
     magic*: array[4, uint8]
     noncefp*: secp256k1_nonce_function_hardened
     ndata*: pointer

@@ -54,6 +54,9 @@ const
   SkRawRecoverableSignatureSize* = 65
     ## Size of recoverable signature in octets (bytes)
 
+  SkRawSchnorrSignatureSize* = 64
+    ## Size of Schnorr signature in octets (bytes)
+
   SkRawPublicKeySize* = 65
     ## Size of uncompressed public key in octets (bytes)
 
@@ -80,7 +83,8 @@ type
 
   SkKeyPair* = object
     ## Representation of private/public keys pair.
-    data: secp256k1_keypair
+    seckey*: SkSecretKey
+    pubkey*: SkPublicKey
 
   SkSignature* {.requiresInit.} = object
     ## Representation of non-recoverable signature.
@@ -89,6 +93,10 @@ type
   SkRecoverableSignature* {.requiresInit.} = object
     ## Representation of recoverable signature.
     data: secp256k1_ecdsa_recoverable_signature
+
+  SkSchnorrSignature* {.requiresInit.} = object
+    ## Representation of a Schnorr signature.
+    data: array[SkRawSchnorrSignatureSize, byte]
 
   SkContext = object
     ## Representation of Secp256k1 context object.
@@ -391,58 +399,29 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
   var recid = cint(0)
   let res = secp256k1_ecdsa_recoverable_signature_serialize_compact(
       secp256k1_context_no_precomp, result.baseAddr, addr recid, unsafeAddr sig.data)
-  doAssert res == 1, "can't fail, per documentation"
+  doAssert res == 1, "Can't fail, per documentation"
 
   result[64] = byte(recid)
 
 func toHex*(sig: SkRecoverableSignature): string =
   toHex(toRaw(sig))
 
-func pubkey*(kp: SkKeyPair): SkPublicKey =
-  var key {.noinit.}: secp256k1_pubkey
-  let res = secp256k1_keypair_pub(secp256k1_context_no_precomp, addr key, addr kp.data)
-  doAssert res == 1, "Can't fail, per documentation"
-  SkPublicKey(data: key)
-
-func seckey*(kp: SkKeyPair): SkSecretKey =
-  var key {.noinit.}: array[SkRawSecretKeySize, byte]
-  let res = secp256k1_keypair_sec(secp256k1_context_no_precomp, key.baseAddr, addr kp.data)
-  doAssert res == 1, "Can't fail, per documentation"
-  SkSecretKey(data: key)
-
-func `pubkey=`*(kp: var SkKeyPair, sk: SkPublicKey) {.deprecated: "Set the seckey instead".} = discard
-
-func `seckey=`*(kp: var SkKeyPair, sk: SkSecretKey) =
-  var newKp: SkKeyPair
-  let res = secp256k1_keypair_create(getContext(), addr newKp.data, sk.data.baseAddr)
-  if res == 1:
-    kp = newKp
-  else:
-    #TODO: Raise an exception? Old behaviour would just set the secret key to an invalid key.
-    discard
-
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
   let seckey = ? SkSecretKey.random(rng)
 
-  var keypair {.noinit.}: secp256k1_keypair
-  let res = secp256k1_keypair_create(getContext(), addr keypair, addr seckey.data[0])
-  doAssert res == 1, "Can't fail, only fails if secret key is invalid but it was freshly generated."
-
   ok(T(
-    data: keypair
+    seckey: seckey,
+    pubkey: seckey.toPublicKey()
   ))
 
 proc random*(T: type SkKeyPair, rng: FoolproofRng): T =
   ## Generates new random key pair.
   let seckey = SkSecretKey.random(rng)
 
-  var keypair {.noinit.}: secp256k1_keypair
-  let res = secp256k1_keypair_create(getContext(), addr keypair, addr seckey.data[0])
-  doAssert res == 1, "Can't fail, only fails if secret key is invalid but it was freshly generated."
-
   T(
-    data: keypair
+    seckey: seckey,
+    pubkey: seckey.toPublicKey()
   )
 
 func `==`*(lhs, rhs: SkPublicKey): bool =
@@ -456,11 +435,6 @@ func `==`*(lhs, rhs: SkSignature): bool =
 func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   ## Compare Secp256k1 `recoverable signature` objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
-
-func `==`*(lhs, rhs: SkKeyPair): bool =
-  ## Compare Secp256k1 `keypair` objects for equality.
-  lhs.pubkey == rhs.pubkey and
-  lhs.seckey == rhs.seckey
 
 func sign*(key: SkSecretKey, msg: SkMessage): SkSignature =
   ## Sign message `msg` using private key `key` and return signature object.
@@ -480,9 +454,53 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   doAssert res == 1, "cannot create recoverable signature, key invalid?"
   SkRecoverableSignature(data: data)
 
+func signSchnorr*(key: SkSecretKey, msg: SkMessage): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` and return signature object.
+  var kp: secp256k1_keypair
+  let res = secp256k1_keypair_create(
+    getContext(), addr kp, key.data.baseAddr)
+  doAssert res == 1, "cannot create keypair, key invalid?"
+
+  var data {.noinit.}: array[SkRawSchnorrSignatureSize, byte]
+  let res2 = secp256k1_schnorrsig_sign32(
+    getContext(), data.baseAddr, msg.baseAddr, addr kp, nil)
+  doAssert res2 == 1, "cannot create signature, key invalid?"
+  SkSchnorrSignature(data: data)
+
+func signSchnorr*(key: SkSecretKey, msg: openArray[byte]): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` and return signature object.
+  var kp: secp256k1_keypair
+  let res = secp256k1_keypair_create(
+    getContext(), addr kp, key.data.baseAddr)
+  doAssert res == 1, "cannot create keypair, key invalid?"
+
+  var data {.noinit.}: array[SkRawSchnorrSignatureSize, byte]
+  let res2 = secp256k1_schnorrsig_sign_custom(
+    getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, nil)
+  doAssert res2 == 1, "cannot create signature, key invalid?"
+  SkSchnorrSignature(data: data)
+
 func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
+
+func verify*(sig: SkSchnorrSignature, msg: SkMessage | openArray[byte], pubkey: SkPublicKey): bool =
+  var xonlyPk: secp256k1_xonly_pubkey
+  let res = secp256k1_xonly_pubkey_from_pubkey(
+    secp256k1_context_no_precomp, addr xonlyPk, nil, addr pubkey.data)
+  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
+
+  secp256k1_schnorrsig_verify(
+    getContext(), addr sig.data[0], msg.baseAddr, csize_t SkMessageSize, addr xonlyPk) == 1
+
+func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
+  var xonlyPk: secp256k1_xonly_pubkey
+  let res = secp256k1_xonly_pubkey_from_pubkey(
+    secp256k1_context_no_precomp, addr xonlyPk, nil, addr pubkey.data)
+  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
+
+  secp256k1_schnorrsig_verify(
+    getContext(), addr sig.data[0], msg.baseAddr, csize_t msg.len, addr xonlyPk) == 1
 
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
@@ -515,12 +533,6 @@ func ecdhRaw*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhRawSecret =
 
 func clear*(v: var SkSecretKey) =
   ## Wipe and clear memory of Secp256k1 `private key`.
-  ## After calling this function, the key is invalid and using it elsewhere will
-  ## result in undefined behaviour or Defect
-  burnMem(v.data)
-
-func clear*(v: var SkKeyPair) =
-  ## Wipe and clear memory of Secp256k1 `keypair`.
   ## After calling this function, the key is invalid and using it elsewhere will
   ## result in undefined behaviour or Defect
   burnMem(v.data)
