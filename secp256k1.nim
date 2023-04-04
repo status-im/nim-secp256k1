@@ -488,7 +488,7 @@ template xonly(pk: SkPublicKey): secp256k1_xonly_pubkey =
   doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
   xonlyPk
 
-func verify*(sig: SkSchnorrSignature, msg: SkMessage | openArray[byte], pubkey: SkPublicKey): bool =
+func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
   let xonlyPk = pubkey.xonly
   secp256k1_schnorrsig_verify(
     getContext(), addr sig.data[0], msg.baseAddr, csize_t SkMessageSize, addr xonlyPk) == 1
