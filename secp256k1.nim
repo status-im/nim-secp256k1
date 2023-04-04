@@ -498,7 +498,7 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte], randbytes: array[32, b
   signSchnorrImpl:
     let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, ndata: randbytes.baseAddr)
     secp256k1_schnorrsig_sign_custom(
-      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, addr extraparams)
+      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, unsafeAddr extraparams)
 
 template signSchnorrRngImpl(): untyped {.dirty.} =
   var randbytes: array[32, byte]
