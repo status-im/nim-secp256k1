@@ -499,9 +499,8 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte]): SkSchnorrSignature =
 
 template signSchnorrRngImpl(makeKeypair: varargs[untyped]): untyped {.dirty.} =
   var randbytes: array[32, byte]
-  while rng(randbytes):
-    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, randbytes.baseAddr) == 1:
-      return ok(signSchnorrImpl(makeKeypair))
+  if rng(randbytes):
+    return ok(signSchnorrImpl(makeKeypair))
   return err("secp: cannot get random bytes for signature")
 
 proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: Rng): SkResult[SkSchnorrSignature] =
@@ -522,14 +521,8 @@ proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[Sk
 
 template signSchnorrFoolproofRngImpl(makeKeypair: varargs[untyped]): untyped {.dirty.} =
   var randbytes: array[32, byte]
-  for _ in 0..1000*1000:
-    rng(randbytes)
-    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, randbytes.baseAddr) == 1:
-      return signSchnorrImpl(makeKeypair)
-
-  result = SkSchnorrSignature(data: default(array[64, byte])) # Silence compiler
-  # All-zeroes all the time for example will break this function
-  raiseAssert "RNG not giving random enough bytes, can't create valid sig"
+  rng(randbytes)
+  return signSchnorrImpl(makeKeypair)
 
 proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: FoolproofRng): SkSchnorrSignature =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
