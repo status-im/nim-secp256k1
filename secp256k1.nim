@@ -406,6 +406,24 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
 func toHex*(sig: SkRecoverableSignature): string =
   toHex(toRaw(sig))
 
+func fromRaw*(T: type SkSchnorrSignature, data: openArray[byte]): SkResult[T] =
+  ## Load Schnorr `signature` from data as created by `toRaw`.
+  if len(data) < SkRawSchnorrSignatureSize:
+    return err(static(&"secp: raw schnorr signature should be {SkRawSchnorrSignatureSize} bytes"))
+
+  ok(T(data: toArray(64, data.toOpenArray(0, SkRawSchnorrSignatureSize - 1))))
+
+func fromHex*(T: type SkSchnorrSignature, data: string): SkResult[T] =
+  ## Initialize Schnorr `signature` from hexadecimal string representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+func toRaw*(sig: SkSchnorrSignature): array[SkRawSchnorrSignatureSize, byte] =
+  ## Serialize Schnorr `signature` ``sig`` to raw binary form.
+  sig.data
+
+func toHex*(sig: SkSchnorrSignature): string =
+  toHex(toRaw(sig))
+
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
   let seckey = ? SkSecretKey.random(rng)
@@ -431,6 +449,10 @@ func `==`*(lhs, rhs: SkSignature): bool =
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func `==`*(lhs, rhs: SkRecoverableSignature): bool =
+  ## Compare Secp256k1 `recoverable signature` objects for equality.
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
+
+func `==`*(lhs, rhs: SkSchnorrSignature): bool =
   ## Compare Secp256k1 `recoverable signature` objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
@@ -464,13 +486,13 @@ template signSchnorrImpl(makeKeypair: untyped): untyped {.dirty.} =
   SkSchnorrSignature(data: data)
 
 func signSchnorr*(key: SkSecretKey, msg: SkMessage): SkSchnorrSignature =
-  ## Sign message `msg` using private key `key` and return signature object.
+  ## Sign message `msg` using private key `key` using the Schnorr signature algorithm and return signature object.
   signSchnorrImpl(
     secp256k1_schnorrsig_sign32(
       getContext(), data.baseAddr, msg.baseAddr, addr kp, nil))
 
 func signSchnorr*(key: SkSecretKey, msg: openArray[byte]): SkSchnorrSignature =
-  ## Sign message `msg` using private key `key` and return signature object.
+  ## Sign message `msg` using private key `key` using the Schnorr signature algorithm and return signature object.
   signSchnorrImpl(
     secp256k1_schnorrsig_sign_custom(
       getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, nil))
@@ -544,7 +566,7 @@ func clear*(v: var SkEcdhRawSecret) =
   burnMem(v.data)
 
 func `$`*(
-    v: SkPublicKey | SkSecretKey | SkSignature | SkRecoverableSignature): string =
+    v: SkPublicKey | SkSecretKey | SkSignature | SkRecoverableSignature | SkSchnorrSignature): string =
   toHex(v)
 
 func fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
