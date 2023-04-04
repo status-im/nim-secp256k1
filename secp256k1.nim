@@ -453,7 +453,7 @@ func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func `==`*(lhs, rhs: SkSchnorrSignature): bool =
-  ## Compare Secp256k1 `recoverable signature` objects for equality.
+  ## Compare Schnorr signature objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func sign*(key: SkSecretKey, msg: SkMessage): SkSignature =
@@ -502,6 +502,7 @@ func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
 
 template xonly(pk: SkPublicKey): secp256k1_xonly_pubkey =
+  ## Gets a pubkey that reveals only the x-coordinate on the curve
   var xonlyPk: secp256k1_xonly_pubkey
   let res = secp256k1_xonly_pubkey_from_pubkey(
     secp256k1_context_no_precomp, addr xonlyPk, nil, addr pubkey.data)
