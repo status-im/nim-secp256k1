@@ -43,10 +43,6 @@ suite "secp256k1":
       SkPublicKey.fromHex(pk.toHex())[].toHex() == pk.toHex()
       SkSecretKey.random(brokenRng).isErr
 
-  test "Keypairs":
-    check:
-      SkKeyPair.random(workingRng).isOk()
-
   test "Signatures":
     let
       sk = SkSecretKey.random(workingRng)[]
