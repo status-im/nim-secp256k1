@@ -487,12 +487,16 @@ template signSchnorrImpl(makeKeypair: untyped): untyped {.dirty.} =
 
 func signSchnorr*(key: SkSecretKey, msg: SkMessage): SkSchnorrSignature =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## You should not use this function unless you are unable to generate random numbers for whatever reason.
+  ## Instead, use the variant of `signSchnorr` with an `Rng` or `FullproofRng`.
   signSchnorrImpl(
     secp256k1_schnorrsig_sign32(
       getContext(), data.baseAddr, msg.baseAddr, addr kp, nil))
 
 func signSchnorr*(key: SkSecretKey, msg: openArray[byte]): SkSchnorrSignature =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## You should not use this function unless you are unable to generate random numbers for whatever reason.
+  ## Instead, use the variant of `signSchnorr` with an `Rng` or `FullproofRng`.
   signSchnorrImpl(
     secp256k1_schnorrsig_sign_custom(
       getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, nil))
