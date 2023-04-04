@@ -409,7 +409,6 @@ func toHex*(sig: SkRecoverableSignature): string =
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
   ## Generates new random key pair.
   let seckey = ? SkSecretKey.random(rng)
-
   ok(T(
     seckey: seckey,
     pubkey: seckey.toPublicKey()
@@ -418,7 +417,6 @@ proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
 proc random*(T: type SkKeyPair, rng: FoolproofRng): T =
   ## Generates new random key pair.
   let seckey = SkSecretKey.random(rng)
-
   T(
     seckey: seckey,
     pubkey: seckey.toPublicKey()
