@@ -65,7 +65,7 @@ suite "secp256k1":
       verify(sig3, msg0, pk)
       verify(sig4, msg2, pk)
       verify(sig5, msg0, pk)
-      verify(sig6, msg0, pk)
+      sig5 == sig6
 
   test "Message":
     check:

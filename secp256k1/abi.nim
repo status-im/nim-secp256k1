@@ -451,7 +451,7 @@ type
     ##            pointer to 32-byte auxiliary randomness as per BIP-340.
     ##
     magic*: array[4, uint8]
-    noncefp*: secp256k1_nonce_function_hardened
+    noncefp*: ptr secp256k1_nonce_function_hardened
     ndata*: pointer
 
 proc secp256k1_schnorrsig_sign32*(ctx: ptr secp256k1_context;
