@@ -454,51 +454,47 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   doAssert res == 1, "cannot create recoverable signature, key invalid?"
   SkRecoverableSignature(data: data)
 
-func signSchnorr*(key: SkSecretKey, msg: SkMessage): SkSchnorrSignature =
-  ## Sign message `msg` using private key `key` and return signature object.
+template signSchnorrImpl(makeKeypair: untyped): untyped {.dirty.} =
   var kp: secp256k1_keypair
   let res = secp256k1_keypair_create(
     getContext(), addr kp, key.data.baseAddr)
   doAssert res == 1, "cannot create keypair, key invalid?"
 
   var data {.noinit.}: array[SkRawSchnorrSignatureSize, byte]
-  let res2 = secp256k1_schnorrsig_sign32(
-    getContext(), data.baseAddr, msg.baseAddr, addr kp, nil)
+  let res2 = makeKeypair
   doAssert res2 == 1, "cannot create signature, key invalid?"
   SkSchnorrSignature(data: data)
+
+func signSchnorr*(key: SkSecretKey, msg: SkMessage): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` and return signature object.
+  signSchnorrImpl(
+    secp256k1_schnorrsig_sign32(
+      getContext(), data.baseAddr, msg.baseAddr, addr kp, nil))
 
 func signSchnorr*(key: SkSecretKey, msg: openArray[byte]): SkSchnorrSignature =
   ## Sign message `msg` using private key `key` and return signature object.
-  var kp: secp256k1_keypair
-  let res = secp256k1_keypair_create(
-    getContext(), addr kp, key.data.baseAddr)
-  doAssert res == 1, "cannot create keypair, key invalid?"
-
-  var data {.noinit.}: array[SkRawSchnorrSignatureSize, byte]
-  let res2 = secp256k1_schnorrsig_sign_custom(
-    getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, nil)
-  doAssert res2 == 1, "cannot create signature, key invalid?"
-  SkSchnorrSignature(data: data)
+  signSchnorrImpl(
+    secp256k1_schnorrsig_sign_custom(
+      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, nil))
 
 func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
 
-func verify*(sig: SkSchnorrSignature, msg: SkMessage | openArray[byte], pubkey: SkPublicKey): bool =
+template xonly(pk: SkPublicKey): secp256k1_xonly_pubkey =
   var xonlyPk: secp256k1_xonly_pubkey
   let res = secp256k1_xonly_pubkey_from_pubkey(
     secp256k1_context_no_precomp, addr xonlyPk, nil, addr pubkey.data)
   doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
+  xonlyPk
 
+func verify*(sig: SkSchnorrSignature, msg: SkMessage | openArray[byte], pubkey: SkPublicKey): bool =
+  let xonlyPk = pubkey.xonly
   secp256k1_schnorrsig_verify(
     getContext(), addr sig.data[0], msg.baseAddr, csize_t SkMessageSize, addr xonlyPk) == 1
 
 func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
-  var xonlyPk: secp256k1_xonly_pubkey
-  let res = secp256k1_xonly_pubkey_from_pubkey(
-    secp256k1_context_no_precomp, addr xonlyPk, nil, addr pubkey.data)
-  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
-
+  let xonlyPk = pubkey.xonly
   secp256k1_schnorrsig_verify(
     getContext(), addr sig.data[0], msg.baseAddr, csize_t msg.len, addr xonlyPk) == 1
 
