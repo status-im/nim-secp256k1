@@ -474,14 +474,14 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   doAssert res == 1, "cannot create recoverable signature, key invalid?"
   SkRecoverableSignature(data: data)
 
-template signSchnorrImpl(makeKeypair: untyped): untyped {.dirty.} =
+template signSchnorrImpl(signMsg: untyped): untyped {.dirty.} =
   var kp: secp256k1_keypair
   let res = secp256k1_keypair_create(
     getContext(), addr kp, key.data.baseAddr)
   doAssert res == 1, "cannot create keypair, key invalid?"
 
   var data {.noinit.}: array[SkRawSchnorrSignatureSize, byte]
-  let res2 = makeKeypair
+  let res2 = signMsg
   doAssert res2 == 1, "cannot create signature, key invalid?"
   SkSchnorrSignature(data: data)
 
