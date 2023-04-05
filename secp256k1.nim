@@ -474,13 +474,13 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   doAssert res == 1, "cannot create recoverable signature, key invalid?"
   SkRecoverableSignature(data: data)
 
-template signSchnorrImpl(signMsg: untyped): untyped {.dirty.} =
-  var kp {.noinit.}: secp256k1_keypair
+template signSchnorrImpl(signMsg: untyped): untyped =
+  var kp {.noinit, inject.}: secp256k1_keypair
   let res = secp256k1_keypair_create(
     getContext(), addr kp, key.data.baseAddr)
   doAssert res == 1, "cannot create keypair, key invalid?"
 
-  var data {.noinit.}: array[SkRawSchnorrSignatureSize, byte]
+  var data {.noinit, inject.}: array[SkRawSchnorrSignatureSize, byte]
   let res2 = signMsg
   doAssert res2 == 1, "cannot create signature, key invalid?"
   SkSchnorrSignature(data: data)
@@ -502,7 +502,7 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte], randbytes: Opt[array[3
     secp256k1_schnorrsig_sign_custom(
       getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, unsafeAddr extraparams))
 
-template signSchnorrRngImpl(): untyped {.dirty.} =
+template signSchnorrRngImpl(): untyped =
   var randbytes: array[32, byte]
   if rng(randbytes):
     return ok(signSchnorr(key, msg, Opt.some randbytes))
@@ -518,7 +518,7 @@ proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[Sk
   ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
   signSchnorrRngImpl()
 
-template signSchnorrFoolproofRngImpl(): untyped {.dirty.} =
+template signSchnorrFoolproofRngImpl(): untyped =
   var randbytes: array[32, byte]
   rng(randbytes)
   return signSchnorr(key, msg, Opt.some randbytes)
