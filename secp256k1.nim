@@ -475,7 +475,7 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   SkRecoverableSignature(data: data)
 
 template signSchnorrImpl(signMsg: untyped): untyped {.dirty.} =
-  var kp: secp256k1_keypair
+  var kp {.noinit.}: secp256k1_keypair
   let res = secp256k1_keypair_create(
     getContext(), addr kp, key.data.baseAddr)
   doAssert res == 1, "cannot create keypair, key invalid?"
