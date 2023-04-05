@@ -518,7 +518,7 @@ proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[Sk
   ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
   signSchnorrRngImpl()
 
-template signSchnorrFoolproofRngImpl(makeKeypair: varargs[untyped]): untyped {.dirty.} =
+template signSchnorrFoolproofRngImpl(): untyped {.dirty.} =
   var randbytes: array[32, byte]
   rng(randbytes)
   return signSchnorr(key, msg, Opt.some randbytes)
