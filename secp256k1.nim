@@ -508,12 +508,12 @@ template signSchnorrRngImpl(): untyped {.dirty.} =
     return ok(signSchnorr(key, msg, Opt.some randbytes))
   return err("secp: cannot get random bytes for signature")
 
-proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: Rng): SkResult[SkSchnorrSignature] =
+proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: Rng): SkResult[SkSchnorrSignature] {.inline.} =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
   ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
   signSchnorrRngImpl()
 
-proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[SkSchnorrSignature] =
+proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[SkSchnorrSignature] {.inline.} =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
   ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
   signSchnorrRngImpl()
@@ -523,12 +523,12 @@ template signSchnorrFoolproofRngImpl(): untyped {.dirty.} =
   rng(randbytes)
   return signSchnorr(key, msg, Opt.some randbytes)
 
-proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: FoolproofRng): SkSchnorrSignature =
+proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: FoolproofRng): SkSchnorrSignature {.inline.} =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
   ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
   signSchnorrFoolproofRngImpl()
 
-proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: FoolproofRng): SkSchnorrSignature =
+proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: FoolproofRng): SkSchnorrSignature {.inline.} =
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
   ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
   signSchnorrFoolproofRngImpl()
