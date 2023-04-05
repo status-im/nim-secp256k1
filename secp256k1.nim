@@ -497,7 +497,7 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte], randbytes: Opt[array[3
   ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
   ## `randbytes` should be an array of 32 freshly generated random bytes.
   let aux_rand32 = if randbytes.isSome: randbytes[].baseAddr else: nil
-  let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, ndata: aux_rand32)
+  let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, noncefp: nil, ndata: aux_rand32)
   signSchnorrImpl(
     secp256k1_schnorrsig_sign_custom(
       getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, unsafeAddr extraparams))
