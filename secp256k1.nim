@@ -503,7 +503,7 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte], randbytes: Opt[array[3
       getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, unsafeAddr extraparams))
 
 template signSchnorrRngImpl(): untyped {.dirty.} =
-  var randbytes: array[32, byte]
+  var randbytes {.noinit.}: array[32, byte]
   if rng(randbytes):
     return ok(signSchnorr(key, msg, Opt.some randbytes))
   return err("secp: cannot get random bytes for signature")
@@ -519,7 +519,7 @@ proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[Sk
   signSchnorrRngImpl()
 
 template signSchnorrFoolproofRngImpl(): untyped {.dirty.} =
-  var randbytes: array[32, byte]
+  var randbytes {.noinit.}: array[32, byte]
   rng(randbytes)
   return signSchnorr(key, msg, Opt.some randbytes)
 
