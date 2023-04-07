@@ -63,6 +63,9 @@ const
   SkRawCompressedPublicKeySize* = 33
     ## Size of compressed public key in octets (bytes)
 
+  SkRawXOnlyPublicKeySize* = 32
+    ## Size of compressed public x-only key in octets (bytes)
+
   SkMessageSize* = 32
     ## Size of message that can be signed
 
@@ -77,7 +80,7 @@ type
     ## Representation of public key.
     data: secp256k1_pubkey
 
-  SkPublicKeyXOnly* {.requiresInit.} = object
+  SkXOnlyPublicKey* {.requiresInit.} = object
     ## Representation of public key that only reveals the x-coordinate.
     data: secp256k1_xonly_pubkey
 
@@ -267,15 +270,6 @@ func toPublicKey*(key: SkSecretKey): SkPublicKey =
 
   SkPublicKey(data: pubkey)
 
-func toXOnly*(pk: SkPublicKey): SkPublicKeyXOnly =
-  ## Gets a pubkey that reveals only the x-coordinate on the curve.
-  var data {.noinit.}: secp256k1_xonly_pubkey
-  let res = secp256k1_xonly_pubkey_from_pubkey(
-    secp256k1_context_no_precomp, addr data, nil, unsafeAddr pk.data)
-  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
-
-  SkPublicKeyXOnly(data: data)
-
 func fromRaw*(T: type SkPublicKey, data: openArray[byte]): SkResult[T] =
   ## Initialize Secp256k1 `public key` ``key`` from raw binary
   ## representation ``data``, which may be compressed, uncompressed or hybrid
@@ -324,6 +318,43 @@ func toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, 
 
 func toHexCompressed*(pubkey: SkPublicKey): string =
   toHex(toRawCompressed(pubkey))
+
+func toXOnlyPublicKey*(pk: SkPublicKey): SkXOnlyPublicKey =
+  ## Gets a pubkey that reveals only the x-coordinate on the curve.
+  var data {.noinit.}: secp256k1_xonly_pubkey
+  let res = secp256k1_xonly_pubkey_from_pubkey(
+    secp256k1_context_no_precomp, addr data, nil, unsafeAddr pk.data)
+  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
+
+  SkXOnlyPublicKey(data: data)
+
+func fromRaw*(T: type SkXOnlyPublicKey, data: openArray[byte]): SkResult[T] =
+  ## Initialize Secp256k1 `x-only public key` ``key`` from raw binary
+  ## representation ``data``.
+  if len(data) != SkRawXOnlyPublicKeySize:
+    return err(static(
+      &"secp: x-only public key must be {SkRawXOnlyPublicKeySize} bytes"))
+
+  var key {.noinit.}: secp256k1_xonly_pubkey
+  if secp256k1_xonly_pubkey_parse(
+      secp256k1_context_no_precomp, addr key, data.baseAddr) != 1:
+    return err("secp: cannot parse x-only public key")
+
+  ok(SkXOnlyPublicKey(data: key))
+
+func fromHex*(T: type SkXOnlyPublicKey, data: string): SkResult[T] =
+  ## Initialize Secp256k1 `x-only public key` ``key`` from hexadecimal string
+  ## representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+func toRaw*(pubkey: SkXOnlyPublicKey): array[SkRawXOnlyPublicKeySize, byte] =
+  ## Serialize Secp256k1 `x-only public key` ``key`` to raw form.
+  let res = secp256k1_xonly_pubkey_serialize(
+    secp256k1_context_no_precomp, result.baseAddr, unsafeAddr pubkey.data)
+  doAssert res == 1, "Can't fail, per documentation"
+
+func toHex*(pubkey: SkXOnlyPublicKey): string =
+  toHex(toRaw(pubkey))
 
 func fromRaw*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
   ## Load compact signature from data
@@ -461,6 +492,10 @@ func `==`*(lhs, rhs: SkSignature): bool =
   ## Compare Secp256k1 `signature` objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
+func `==`*(lhs, rhs: SkXOnlyPublicKey): bool =
+  ## Compare Secp256k1 `x-only public key` objects for equality.
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
+
 func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   ## Compare Secp256k1 `recoverable signature` objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
@@ -550,19 +585,19 @@ func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
 
-func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKeyXOnly): bool =
+func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkXOnlyPublicKey): bool =
   secp256k1_schnorrsig_verify(
     getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t SkMessageSize, unsafeAddr pubkey.data) == 1
 
-func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKeyXOnly): bool =
+func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkXOnlyPublicKey): bool =
   secp256k1_schnorrsig_verify(
     getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t msg.len, unsafeAddr pubkey.data) == 1
 
 template verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
-  verify(sig, msg, pubkey.toXOnly)
+  verify(sig, msg, pubkey.toXOnlyPublicKey)
 
 template verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
-  verify(sig, msg, pubkey.toXOnly)
+  verify(sig, msg, pubkey.toXOnlyPublicKey)
 
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
@@ -612,7 +647,7 @@ func clear*(v: var SkEcdhRawSecret) =
   burnMem(v.data)
 
 func `$`*(
-    v: SkPublicKey | SkSecretKey | SkSignature | SkRecoverableSignature | SkSchnorrSignature): string =
+    v: SkPublicKey | SkSecretKey | SkXOnlyPublicKey | SkSignature | SkRecoverableSignature | SkSchnorrSignature): string =
   toHex(v)
 
 func fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
@@ -625,6 +660,7 @@ func fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
 # TODO replace `requiresInit` with a pragma that does the expected thing
 proc default*(T: type SkPublicKey): T {.error: "loophole".}
 proc default*(T: type SkSecretKey): T {.error: "loophole".}
+proc default*(T: type SkXOnlyPublicKey): T {.error: "loophole".}
 proc default*(T: type SkSignature): T {.error: "loophole".}
 proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
 proc default*(T: type SkSchnorrSignature): T {.error: "loophole".}

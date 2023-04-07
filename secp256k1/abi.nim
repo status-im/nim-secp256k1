@@ -358,10 +358,28 @@ type
 proc secp256k1_xonly_pubkey_parse*(ctx: ptr secp256k1_context;
                                    pubkey: ptr secp256k1_xonly_pubkey;
                                    input32: ptr byte): cint {.secp.}
+  ## Parse a 32-byte sequence into a xonly_pubkey object.
+  ##
+  ## Returns: 1 if the public key was fully valid.
+  ##          0 if the public key could not be parsed or is invalid.
+  ##
+  ## Args:   ctx: a secp256k1 context object.
+  ## Out: pubkey: pointer to a pubkey object. If 1 is returned, it is set to a
+  ##              parsed version of input. If not, it's set to an invalid value.
+  ## In: input32: pointer to a serialized xonly_pubkey.
+  ##
 
 proc secp256k1_xonly_pubkey_serialize*(ctx: ptr secp256k1_context;
                                        output32: ptr byte;
                                        pubkey: ptr secp256k1_xonly_pubkey): cint {.secp.}
+  ## Serialize an xonly_pubkey object into a 32-byte sequence.
+  ##
+  ## Returns: 1 always.
+  ##
+  ## Args:     ctx: a secp256k1 context object.
+  ## Out: output32: a pointer to a 32-byte array to place the serialized key in.
+  ## In:    pubkey: a pointer to a secp256k1_xonly_pubkey containing an initialized public key.
+  ##
 
 proc secp256k1_xonly_pubkey_from_pubkey*(ctx: ptr secp256k1_context;
                                          xonly_pubkey: ptr secp256k1_xonly_pubkey;
