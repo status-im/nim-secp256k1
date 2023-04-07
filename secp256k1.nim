@@ -319,7 +319,7 @@ func toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, 
 func toHexCompressed*(pubkey: SkPublicKey): string =
   toHex(toRawCompressed(pubkey))
 
-func toXOnlyPublicKey*(pk: SkPublicKey): SkXOnlyPublicKey =
+func toXOnly*(pk: SkPublicKey): SkXOnlyPublicKey =
   ## Gets a pubkey that reveals only the x-coordinate on the curve.
   var data {.noinit.}: secp256k1_xonly_pubkey
   let res = secp256k1_xonly_pubkey_from_pubkey(
@@ -594,10 +594,10 @@ func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkXOnlyPubli
     getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t msg.len, unsafeAddr pubkey.data) == 1
 
 template verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
-  verify(sig, msg, pubkey.toXOnlyPublicKey)
+  verify(sig, msg, pubkey.toXOnly)
 
 template verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
-  verify(sig, msg, pubkey.toXOnlyPublicKey)
+  verify(sig, msg, pubkey.toXOnly)
 
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
