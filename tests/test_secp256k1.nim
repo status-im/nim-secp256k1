@@ -41,6 +41,8 @@ suite "secp256k1":
       SkPublicKey.fromRaw(pk.toRaw())[].toHex() == pk.toHex()
       SkPublicKey.fromRaw(pk.toRawCompressed())[].toHex() == pk.toHex()
       SkPublicKey.fromHex(pk.toHex())[].toHex() == pk.toHex()
+      SkXOnlyPublicKey.fromRaw(pk.toXOnlyPublicKey.toRaw())[].toHex() == pk.toXOnlyPublicKey.toHex()
+      SkXOnlyPublicKey.fromHex(pk.toXOnlyPublicKey.toHex())[].toHex() == pk.toXOnlyPublicKey.toHex()
       SkSecretKey.random(brokenRng).isErr
 
   test "Signatures":
