@@ -77,6 +77,10 @@ type
     ## Representation of public key.
     data: secp256k1_pubkey
 
+  SkPublicKeyXOnly* {.requiresInit.} = object
+    ## Representation of public key that only reveals the x-coordinate.
+    data: secp256k1_xonly_pubkey
+
   SkSecretKey* {.requiresInit.} = object
     ## Representation of secret key.
     data: array[SkRawSecretKeySize, byte]
@@ -262,6 +266,15 @@ func toPublicKey*(key: SkSecretKey): SkPublicKey =
   doAssert res == 1, "Valid private keys should always have a corresponding pub"
 
   SkPublicKey(data: pubkey)
+
+func toXOnly*(pk: SkPublicKey): SkPublicKeyXOnly =
+  ## Gets a pubkey that reveals only the x-coordinate on the curve.
+  var data {.noinit.}: secp256k1_xonly_pubkey
+  let res = secp256k1_xonly_pubkey_from_pubkey(
+    secp256k1_context_no_precomp, addr data, nil, unsafeAddr pk.data)
+  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
+
+  SkPublicKeyXOnly(data: data)
 
 func fromRaw*(T: type SkPublicKey, data: openArray[byte]): SkResult[T] =
   ## Initialize Secp256k1 `public key` ``key`` from raw binary
@@ -537,21 +550,19 @@ func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
 
-func xonly(pk: SkPublicKey): secp256k1_xonly_pubkey {.inline.} =
-  ## Gets a pubkey that reveals only the x-coordinate on the curve
-  let res = secp256k1_xonly_pubkey_from_pubkey(
-    secp256k1_context_no_precomp, addr result, nil, unsafeAddr pk.data)
-  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
-
-func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
-  let xonlyPk = pubkey.xonly
+func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKeyXOnly): bool =
   secp256k1_schnorrsig_verify(
-    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t SkMessageSize, unsafeAddr xonlyPk) == 1
+    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t SkMessageSize, unsafeAddr pubkey.data) == 1
 
-func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
-  let xonlyPk = pubkey.xonly
+func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKeyXOnly): bool =
   secp256k1_schnorrsig_verify(
-    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t msg.len, unsafeAddr xonlyPk) == 1
+    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t msg.len, unsafeAddr pubkey.data) == 1
+
+template verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
+  verify(sig, msg, pubkey.toXOnly)
+
+template verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
+  verify(sig, msg, pubkey.toXOnly)
 
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
