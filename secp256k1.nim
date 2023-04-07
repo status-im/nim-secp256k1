@@ -64,7 +64,7 @@ const
     ## Size of compressed public key in octets (bytes)
 
   SkRawXOnlyPublicKeySize* = 32
-    ## Size of compressed public x-only key in octets (bytes)
+    ## Size of x-only public key in octets (bytes)
 
   SkMessageSize* = 32
     ## Size of message that can be signed
