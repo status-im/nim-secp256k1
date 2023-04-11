@@ -30,3 +30,17 @@ suite "ABI tests":
                          addr aPublicKey,
                          cast[ptr byte](addr bSecretKey[0])) == 1
     check(data1 == data2)
+
+  test "C-side keypairs should be unchanged when serialized":
+    var keypair: secp256k1_keypair
+    var secretKey: array[32, uint8]
+    var publicKey: secp256k1_xonly_pubkey
+    var parsed: array[32, byte]
+    var reflectedPublicKey: secp256k1_xonly_pubkey
+    secretKey[31] = 1'u8
+    let ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN or SECP256K1_CONTEXT_VERIFY)
+    check secp256k1_keypair_create(ctx, addr keypair, cast[ptr byte](addr secretKey[0])) == 1
+    check secp256k1_keypair_xonly_pub(ctx, addr publicKey, nil, addr keypair) == 1
+    check secp256k1_xonly_pubkey_serialize(ctx, addr parsed[0], addr publicKey) == 1
+    check secp256k1_xonly_pubkey_parse(ctx, addr reflectedPublicKey, addr parsed[0]) == 1
+    check publicKey == reflectedPublicKey

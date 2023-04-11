@@ -54,11 +54,17 @@ const
   SkRawRecoverableSignatureSize* = 65
     ## Size of recoverable signature in octets (bytes)
 
+  SkRawSchnorrSignatureSize* = 64
+    ## Size of Schnorr signature in octets (bytes)
+
   SkRawPublicKeySize* = 65
     ## Size of uncompressed public key in octets (bytes)
 
   SkRawCompressedPublicKeySize* = 33
     ## Size of compressed public key in octets (bytes)
+
+  SkRawXOnlyPublicKeySize* = 32
+    ## Size of x-only public key in octets (bytes)
 
   SkMessageSize* = 32
     ## Size of message that can be signed
@@ -73,6 +79,10 @@ type
   SkPublicKey* {.requiresInit.} = object
     ## Representation of public key.
     data: secp256k1_pubkey
+
+  SkXOnlyPublicKey* {.requiresInit.} = object
+    ## Representation of public key that only reveals the x-coordinate.
+    data: secp256k1_xonly_pubkey
 
   SkSecretKey* {.requiresInit.} = object
     ## Representation of secret key.
@@ -90,6 +100,10 @@ type
   SkRecoverableSignature* {.requiresInit.} = object
     ## Representation of recoverable signature.
     data: secp256k1_ecdsa_recoverable_signature
+
+  SkSchnorrSignature* {.requiresInit.} = object
+    ## Representation of a Schnorr signature.
+    data: array[SkRawSchnorrSignatureSize, byte]
 
   SkContext = object
     ## Representation of Secp256k1 context object.
@@ -305,6 +319,43 @@ func toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, 
 func toHexCompressed*(pubkey: SkPublicKey): string =
   toHex(toRawCompressed(pubkey))
 
+func toXOnly*(pk: SkPublicKey): SkXOnlyPublicKey =
+  ## Gets a pubkey that reveals only the x-coordinate on the curve.
+  var data {.noinit.}: secp256k1_xonly_pubkey
+  let res = secp256k1_xonly_pubkey_from_pubkey(
+    secp256k1_context_no_precomp, addr data, nil, unsafeAddr pk.data)
+  doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
+
+  SkXOnlyPublicKey(data: data)
+
+func fromRaw*(T: type SkXOnlyPublicKey, data: openArray[byte]): SkResult[T] =
+  ## Initialize Secp256k1 `x-only public key` ``key`` from raw binary
+  ## representation ``data``.
+  if len(data) != SkRawXOnlyPublicKeySize:
+    return err(static(
+      &"secp: x-only public key must be {SkRawXOnlyPublicKeySize} bytes"))
+
+  var key {.noinit.}: secp256k1_xonly_pubkey
+  if secp256k1_xonly_pubkey_parse(
+      secp256k1_context_no_precomp, addr key, data.baseAddr) != 1:
+    return err("secp: cannot parse x-only public key")
+
+  ok(SkXOnlyPublicKey(data: key))
+
+func fromHex*(T: type SkXOnlyPublicKey, data: string): SkResult[T] =
+  ## Initialize Secp256k1 `x-only public key` ``key`` from hexadecimal string
+  ## representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+func toRaw*(pubkey: SkXOnlyPublicKey): array[SkRawXOnlyPublicKeySize, byte] =
+  ## Serialize Secp256k1 `x-only public key` ``key`` to raw form.
+  let res = secp256k1_xonly_pubkey_serialize(
+    secp256k1_context_no_precomp, result.baseAddr, unsafeAddr pubkey.data)
+  doAssert res == 1, "Can't fail, per documentation"
+
+func toHex*(pubkey: SkXOnlyPublicKey): string =
+  toHex(toRaw(pubkey))
+
 func fromRaw*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
   ## Load compact signature from data
   if data.len() < SkRawSignatureSize:
@@ -392,11 +443,29 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
   var recid = cint(0)
   let res = secp256k1_ecdsa_recoverable_signature_serialize_compact(
       secp256k1_context_no_precomp, result.baseAddr, addr recid, unsafeAddr sig.data)
-  doAssert res == 1, "can't fail, per documentation"
+  doAssert res == 1, "Can't fail, per documentation"
 
   result[64] = byte(recid)
 
 func toHex*(sig: SkRecoverableSignature): string =
+  toHex(toRaw(sig))
+
+func fromRaw*(T: type SkSchnorrSignature, data: openArray[byte]): SkResult[T] =
+  ## Load Schnorr `signature` from data as created by `toRaw`.
+  if len(data) < SkRawSchnorrSignatureSize:
+    return err(static(&"secp: raw schnorr signature should be {SkRawSchnorrSignatureSize} bytes"))
+
+  ok(T(data: toArray(64, data.toOpenArray(0, SkRawSchnorrSignatureSize - 1))))
+
+func fromHex*(T: type SkSchnorrSignature, data: string): SkResult[T] =
+  ## Initialize Schnorr `signature` from hexadecimal string representation ``data``.
+  T.fromRaw(? seq[byte].fromHex(data))
+
+func toRaw*(sig: SkSchnorrSignature): array[SkRawSchnorrSignatureSize, byte] =
+  ## Serialize Schnorr `signature` ``sig`` to raw binary form.
+  sig.data
+
+func toHex*(sig: SkSchnorrSignature): string =
   toHex(toRaw(sig))
 
 proc random*(T: type SkKeyPair, rng: Rng): SkResult[T] =
@@ -423,8 +492,16 @@ func `==`*(lhs, rhs: SkSignature): bool =
   ## Compare Secp256k1 `signature` objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
+func `==`*(lhs, rhs: SkXOnlyPublicKey): bool =
+  ## Compare Secp256k1 `x-only public key` objects for equality.
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
+
 func `==`*(lhs, rhs: SkRecoverableSignature): bool =
   ## Compare Secp256k1 `recoverable signature` objects for equality.
+  CT.isEqual(lhs.toRaw(), rhs.toRaw())
+
+func `==`*(lhs, rhs: SkSchnorrSignature): bool =
+  ## Compare Schnorr signature objects for equality.
   CT.isEqual(lhs.toRaw(), rhs.toRaw())
 
 func sign*(key: SkSecretKey, msg: SkMessage): SkSignature =
@@ -445,9 +522,82 @@ func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature 
   doAssert res == 1, "cannot create recoverable signature, key invalid?"
   SkRecoverableSignature(data: data)
 
+template signSchnorrImpl(signMsg: untyped): untyped =
+  var kp {.noinit, inject.}: secp256k1_keypair
+  let res = secp256k1_keypair_create(
+    getContext(), addr kp, key.data.baseAddr)
+  doAssert res == 1, "cannot create keypair, key invalid?"
+
+  var data {.noinit, inject.}: array[SkRawSchnorrSignatureSize, byte]
+  let res2 = signMsg
+  doAssert res2 == 1, "cannot create signature, key invalid?"
+  SkSchnorrSignature(data: data)
+
+func signSchnorr*(key: SkSecretKey, msg: SkMessage, randbytes: Opt[array[32, byte]]): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## `randbytes` should be an array of 32 freshly generated random bytes.
+  let aux_rand32 = if randbytes.isSome: randbytes[].baseAddr else: nil
+  signSchnorrImpl(
+    secp256k1_schnorrsig_sign32(
+      getContext(), data.baseAddr, msg.baseAddr, addr kp, aux_rand32))
+
+func signSchnorr*(key: SkSecretKey, msg: openArray[byte], randbytes: Opt[array[32, byte]]): SkSchnorrSignature =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## `randbytes` should be an array of 32 freshly generated random bytes.
+  let aux_rand32 = if randbytes.isSome: randbytes[].baseAddr else: nil
+  let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, noncefp: nil, ndata: aux_rand32)
+  signSchnorrImpl(
+    secp256k1_schnorrsig_sign_custom(
+      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, unsafeAddr extraparams))
+
+template signSchnorrRngImpl(): untyped =
+  var randbytes: array[32, byte]
+  if rng(randbytes):
+    return ok(signSchnorr(key, msg, Opt.some randbytes))
+  return err("secp: cannot get random bytes for signature")
+
+proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: Rng): SkResult[SkSchnorrSignature] {.inline.} =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
+  signSchnorrRngImpl()
+
+proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: Rng): SkResult[SkSchnorrSignature] {.inline.} =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
+  signSchnorrRngImpl()
+
+template signSchnorrFoolproofRngImpl(): untyped =
+  var randbytes: array[32, byte]
+  rng(randbytes)
+  return signSchnorr(key, msg, Opt.some randbytes)
+
+proc signSchnorr*(key: SkSecretKey, msg: SkMessage, rng: FoolproofRng): SkSchnorrSignature {.inline.} =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
+  signSchnorrFoolproofRngImpl()
+
+proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: FoolproofRng): SkSchnorrSignature {.inline.} =
+  ## Sign message `msg` using private key `key` with the Schnorr signature algorithm and return signature object.
+  ## Uses ``rng`` to generate 32-bytes of random data for signature generation.
+  signSchnorrFoolproofRngImpl()
+
 func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
     getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
+
+func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkXOnlyPublicKey): bool =
+  secp256k1_schnorrsig_verify(
+    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t SkMessageSize, unsafeAddr pubkey.data) == 1
+
+func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkXOnlyPublicKey): bool =
+  secp256k1_schnorrsig_verify(
+    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t msg.len, unsafeAddr pubkey.data) == 1
+
+template verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
+  verify(sig, msg, pubkey.toXOnly)
+
+template verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublicKey): bool =
+  verify(sig, msg, pubkey.toXOnly)
 
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
@@ -497,7 +647,7 @@ func clear*(v: var SkEcdhRawSecret) =
   burnMem(v.data)
 
 func `$`*(
-    v: SkPublicKey | SkSecretKey | SkSignature | SkRecoverableSignature): string =
+    v: SkPublicKey | SkSecretKey | SkXOnlyPublicKey | SkSignature | SkRecoverableSignature | SkSchnorrSignature): string =
   toHex(v)
 
 func fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
@@ -510,8 +660,10 @@ func fromBytes*(T: type SkMessage, data: openArray[byte]): SkResult[SkMessage] =
 # TODO replace `requiresInit` with a pragma that does the expected thing
 proc default*(T: type SkPublicKey): T {.error: "loophole".}
 proc default*(T: type SkSecretKey): T {.error: "loophole".}
+proc default*(T: type SkXOnlyPublicKey): T {.error: "loophole".}
 proc default*(T: type SkSignature): T {.error: "loophole".}
 proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
+proc default*(T: type SkSchnorrSignature): T {.error: "loophole".}
 proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
 proc default*(T: type SkEcdhRawSecret): T {.error: "loophole".}
 

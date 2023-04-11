@@ -326,3 +326,218 @@ proc secp256k1_ecdh_raw*(ctx: ptr secp256k1_context; output32: ptr byte;
   ##                      initialized public key
   ##          privkey:    a 32-byte scalar with which to multiply the point
   ##
+
+## Multikey interface follows
+
+type
+  secp256k1_xonly_pubkey* = object
+    ## Opaque data structure that holds a parsed and valid "x-only" public key.
+    ## An x-only pubkey encodes a point whose Y coordinate is even. It is
+    ## serialized using only its X coordinate (32 bytes). See BIP-340 for more
+    ## information about x-only pubkeys.
+    ##
+    ## The exact representation of data inside is implementation defined and not
+    ## guaranteed to be portable between different platforms or versions. It is
+    ## however guaranteed to be 64 bytes in size, and can be safely copied/moved.
+    ## If you need to convert to a format suitable for storage, transmission, use
+    ## use secp256k1_xonly_pubkey_serialize and secp256k1_xonly_pubkey_parse. To
+    ## compare keys, use secp256k1_xonly_pubkey_cmp.
+    ##
+    data*: array[64, uint8]
+
+  secp256k1_keypair* = object
+    ## Opaque data structure that holds a keypair consisting of a secret and a
+    ## public key.
+    ##
+    ## The exact representation of data inside is implementation defined and not
+    ## guaranteed to be portable between different platforms or versions. It is
+    ## however guaranteed to be 96 bytes in size, and can be safely copied/moved.
+    ##
+    data*: array[96, uint8]
+
+proc secp256k1_xonly_pubkey_parse*(ctx: ptr secp256k1_context;
+                                   pubkey: ptr secp256k1_xonly_pubkey;
+                                   input32: ptr byte): cint {.secp.}
+  ## Parse a 32-byte sequence into a xonly_pubkey object.
+  ##
+  ## Returns: 1 if the public key was fully valid.
+  ##          0 if the public key could not be parsed or is invalid.
+  ##
+  ## Args:   ctx: a secp256k1 context object.
+  ## Out: pubkey: pointer to a pubkey object. If 1 is returned, it is set to a
+  ##              parsed version of input. If not, it's set to an invalid value.
+  ## In: input32: pointer to a serialized xonly_pubkey.
+  ##
+
+proc secp256k1_xonly_pubkey_serialize*(ctx: ptr secp256k1_context;
+                                       output32: ptr byte;
+                                       pubkey: ptr secp256k1_xonly_pubkey): cint {.secp.}
+  ## Serialize an xonly_pubkey object into a 32-byte sequence.
+  ##
+  ## Returns: 1 always.
+  ##
+  ## Args:     ctx: a secp256k1 context object.
+  ## Out: output32: a pointer to a 32-byte array to place the serialized key in.
+  ## In:    pubkey: a pointer to a secp256k1_xonly_pubkey containing an initialized public key.
+  ##
+
+proc secp256k1_xonly_pubkey_from_pubkey*(ctx: ptr secp256k1_context;
+                                         xonly_pubkey: ptr secp256k1_xonly_pubkey;
+                                         pk_parity: ptr cint;
+                                         pubkey: ptr secp256k1_pubkey): cint {.secp.}
+  ## Converts a secp256k1_pubkey into a secp256k1_xonly_pubkey.
+  ##
+  ## Returns: 1 always.
+  ##
+  ## Args:         ctx: pointer to a context object.
+  ## Out: xonly_pubkey: pointer to an x-only public key object for placing the converted public key.
+  ##         pk_parity: Ignored if NULL. Otherwise, pointer to an integer that
+  ##                    will be set to 1 if the point encoded by xonly_pubkey is
+  ##                    the negation of the pubkey and set to 0 otherwise.
+  ## In:        pubkey: pointer to a public key that is converted.
+  ##
+
+proc secp256k1_xonly_pubkey_tweak_add*(ctx: ptr secp256k1_context;
+                                       output_pubkey: ptr secp256k1_pubkey;
+                                       internal_pubkey: ptr secp256k1_xonly_pubkey;
+                                       tweak32: ptr byte): cint {.secp.}
+
+proc secp256k1_xonly_pubkey_tweak_add_check*(ctx: ptr secp256k1_context;
+                                             tweaked_pubkey32: ptr byte;
+                                             tweaked_pk_parity: cint;
+                                             internal_pubkey: ptr secp256k1_xonly_pubkey;
+                                             tweak32: ptr byte): cint {.secp.}
+
+proc secp256k1_keypair_create*(ctx: ptr secp256k1_context;
+                               keypair: ptr secp256k1_keypair;
+                               seckey: ptr byte): cint {.secp.}
+  ## Compute the keypair for a secret key.
+  ##
+  ## Returns: 1: secret was valid, keypair is ready to use
+  ##          0: secret was invalid, try again with a different secret
+  ## Args:    ctx: pointer to a context object, initialized for signing.
+  ## Out: keypair: pointer to the created keypair.
+  ## In:   seckey: pointer to a 32-byte secret key.
+  ##
+
+proc secp256k1_keypair_sec*(ctx: ptr secp256k1_context;
+                            seckey: ptr byte;
+                            keypair: ptr secp256k1_keypair): cint {.secp.}
+
+proc secp256k1_keypair_pub*(ctx: ptr secp256k1_context;
+                            pubkey: ptr secp256k1_pubkey;
+                            keypair: ptr secp256k1_keypair): cint {.secp.}
+
+proc secp256k1_keypair_xonly_pub*(ctx: ptr secp256k1_context;
+                                  pubkey: ptr secp256k1_xonly_pubkey;
+                                  pk_parity: ptr cint;
+                                  keypair: ptr secp256k1_keypair): cint {.secp.}
+
+proc secp256k1_keypair_xonly_tweak_add*(ctx: ptr secp256k1_context;
+                                        keypair: ptr secp256k1_keypair;
+                                        tweak32: ptr byte): cint {.secp.}
+
+## Schnorrsig interface follows
+
+type
+  secp256k1_nonce_function_hardened* = object
+    nonce32*: ptr byte
+    msg*: ptr byte
+    msglen*: csize_t
+    key32*: ptr byte
+    xonly_pk32*: ptr byte
+    algo*: ptr byte
+    algolen*: csize_t
+    data*: pointer
+
+const
+  SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC* = [ 0xda'u8 , 0x6f, 0xb3, 0x8c ]
+
+type
+  secp256k1_schnorrsig_extraparams* = object
+    ## Data structure that contains additional arguments for schnorrsig_sign_custom.
+    ##
+    ## Members:
+    ##     magic: set to SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC at initialization
+    ##            and has no other function than making sure the object is
+    ##            initialized.
+    ##   noncefp: pointer to a nonce generation function. If NULL,
+    ##            secp256k1_nonce_function_bip340 is used
+    ##     ndata: pointer to arbitrary data used by the nonce generation function
+    ##            (can be NULL). If it is non-NULL and
+    ##            secp256k1_nonce_function_bip340 is used, then ndata must be a
+    ##            pointer to 32-byte auxiliary randomness as per BIP-340.
+    ##
+    magic*: array[4, uint8]
+    noncefp*: ptr secp256k1_nonce_function_hardened
+    ndata*: pointer
+
+proc secp256k1_schnorrsig_sign32*(ctx: ptr secp256k1_context;
+                                  sig64: ptr byte;
+                                  msg32: ptr byte;
+                                  keypair: ptr secp256k1_keypair;
+                                  aux_rand32: ptr byte): cint {.secp.}
+  ## Create a Schnorr signature.
+  ##
+  ## Does _not_ strictly follow BIP-340 because it does not verify the resulting
+  ## signature. Instead, you can manually use secp256k1_schnorrsig_verify and
+  ## abort if it fails.
+  ##
+  ## This function only signs 32-byte messages. If you have messages of a
+  ## different size (or the same size but without a context-specific tag
+  ## prefix), it is recommended to create a 32-byte message hash with
+  ## secp256k1_tagged_sha256 and then sign the hash. Tagged hashing allows
+  ## providing an context-specific tag for domain separation. This prevents
+  ## signatures from being valid in multiple contexts by accident.
+  ##
+  ## Returns 1 on success, 0 on failure.
+  ## Args:    ctx: pointer to a context object, initialized for signing.
+  ## Out:   sig64: pointer to a 64-byte array to store the serialized signature.
+  ## In:    msg32: the 32-byte message being signed.
+  ##      keypair: pointer to an initialized keypair.
+  ##   aux_rand32: 32 bytes of fresh randomness. While recommended to provide
+  ##               this, it is only supplemental to security and can be NULL. A
+  ##               NULL argument is treated the same as an all-zero one. See
+  ##               BIP-340 "Default Signing" for a full explanation of this
+  ##               argument and for guidance if randomness is expensive.
+  ##
+
+proc secp256k1_schnorrsig_sign_custom*(
+  ctx: ptr secp256k1_context;
+  sig64: ptr byte;
+  msg: ptr byte;
+  msglen: csize_t;
+  keypair: ptr secp256k1_keypair;
+  extraparams: ptr secp256k1_schnorrsig_extraparams): cint {.secp.}
+  ## Create a Schnorr signature with a more flexible API.
+  ##
+  ## Same arguments as secp256k1_schnorrsig_sign except that it allows signing
+  ## variable length messages and accepts a pointer to an extraparams object that
+  ## allows customizing signing by passing additional arguments.
+  ##
+  ## Creates the same signatures as schnorrsig_sign if msglen is 32 and the
+  ## extraparams.ndata is the same as aux_rand32.
+  ##
+  ## In:     msg: the message being signed. Can only be NULL if msglen is 0.
+  ##      msglen: length of the message
+  ## extraparams: pointer to a extraparams object (can be NULL)
+  ##
+
+proc secp256k1_schnorrsig_verify*(
+  ctx: ptr secp256k1_context;
+  sig64: ptr byte;
+  msg: ptr byte;
+  msglen: csize_t;
+  pubkey: ptr secp256k1_xonly_pubkey): cint {.secp.}
+  ## Verify a Schnorr signature.
+  ##
+  ## Returns: 1: correct signature
+  ##          0: incorrect signature
+  ## Args:    ctx: a secp256k1 context object, initialized for verification.
+  ## In:    sig64: pointer to the 64-byte signature to verify.
+  ##          msg: the message being verified. Can only be NULL if msglen is 0.
+  ##       msglen: length of the message
+  ##       pubkey: pointer to an x-only public key to verify with (cannot be NULL)
+  ##
+
+var secp256k1_nonce_function_bip340*: secp256k1_nonce_function_hardened
