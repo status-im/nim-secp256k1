@@ -601,19 +601,23 @@ func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey
 
   ok(SkPublicKey(data: data))
 
-func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkResult[SkEcdhSecret] =
+func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhSecret =
   ## Calculate ECDH shared secret.
+  ## Default hash function and `requiresInit` should prevent this function
+  ## from failing.
   var secret {.noinit.}: array[SkEdchSecretSize, byte]
-  if secp256k1_ecdh(
+  let res = secp256k1_ecdh(
       secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
-      seckey.data.baseAddr) != 1:
-    return err("cannot compute ECDH secret, keys invalid?")
+      seckey.data.baseAddr)
+  doAssert res == 1, "cannot compute ECDH secret, keys invalid?"
 
-  ok(SkEcdhSecret(data: secret))
+  SkEcdhSecret(data: secret)
 
 func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
            hashfn: SkEcdhHashFunc, data: pointer): SkResult[array[N, byte]] =
   ## Calculate ECDH shared secret using custom hash function.
+  ## This function may fail if the custom hash function return zero
+  ## although other inputs have been initialized properly.
   var secret {.noinit.}: array[N, byte]
   if secp256k1_ecdh(
       secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
