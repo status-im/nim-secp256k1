@@ -72,9 +72,6 @@ const
   SkEdchSecretSize* = 32
     ## ECDH-agreed key size
 
-  SkEcdhRawSecretSize* = 33
-    ## ECDH-agreed raw key size
-
 type
   SkPublicKey* {.requiresInit.} = object
     ## Representation of public key.
@@ -116,10 +113,7 @@ type
     ## Representation of ECDH shared secret
     data*: array[SkEdchSecretSize, byte]
 
-  SkEcdhRawSecret* {.requiresInit.} = object
-    ## Representation of ECDH shared secret, with leading `y` byte
-    # (`y` is 0x02 when pubkey.y is even or 0x03 when odd)
-    data*: array[SkEcdhRawSecretSize, byte]
+  SkEcdhHashFunc* = secp256k1_ecdh_hash_function
 
   SkResult*[T] = Result[T, cstring]
 
@@ -607,26 +601,26 @@ func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey
 
   ok(SkPublicKey(data: data))
 
-func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhSecret =
+func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkResult[SkEcdhSecret] =
   ## Calculate ECDH shared secret.
   var secret {.noinit.}: array[SkEdchSecretSize, byte]
-  let res = secp256k1_ecdh(
+  if secp256k1_ecdh(
       secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
-      seckey.data.baseAddr)
-  doAssert res == 1, "cannot compute ECDH secret, keys invalid?"
+      seckey.data.baseAddr) != 1:
+    return err("cannot compute ECDH secret, keys invalid?")
 
-  SkEcdhSecret(data: secret)
+  ok(SkEcdhSecret(data: secret))
 
-func ecdhRaw*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhRawSecret =
-  ## Calculate ECDH shared secret, ethereum style
-  # TODO - deprecate: https://github.com/status-im/nim-eth/issues/222
-  var secret {.noinit.}: array[SkEcdhRawSecretSize, byte]
-  let res = secp256k1_ecdh_raw(
-    secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
-    seckey.data.baseAddr)
-  doAssert res == 1, "cannot compute raw ECDH secret, keys invalid?"
+func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
+           hashfn: SkEcdhHashFunc, data: pointer): SkResult[array[N, byte]] =
+  ## Calculate ECDH shared secret using custom hash function.
+  var secret {.noinit.}: array[N, byte]
+  if secp256k1_ecdh(
+      secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
+      seckey.data.baseAddr, hashfn, data) != 1:
+    return err("cannot compute ECDH secret, keys invalid?")
 
-  SkEcdhRawSecret(data: secret)
+  ok(secret)
 
 func clear*(v: var SkSecretKey) =
   ## Wipe and clear memory of Secp256k1 `private key`.
@@ -635,12 +629,6 @@ func clear*(v: var SkSecretKey) =
   burnMem(v.data)
 
 func clear*(v: var SkEcdhSecret) =
-  ## Wipe and clear memory of ECDH `shared secret`.
-  ## After calling this function, the key is invalid and using it elsewhere will
-  ## result in undefined behaviour or Defect
-  burnMem(v.data)
-
-func clear*(v: var SkEcdhRawSecret) =
   ## Wipe and clear memory of ECDH `shared secret`.
   ## After calling this function, the key is invalid and using it elsewhere will
   ## result in undefined behaviour or Defect
@@ -665,7 +653,6 @@ proc default*(T: type SkSignature): T {.error: "loophole".}
 proc default*(T: type SkRecoverableSignature): T {.error: "loophole".}
 proc default*(T: type SkSchnorrSignature): T {.error: "loophole".}
 proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
-proc default*(T: type SkEcdhRawSecret): T {.error: "loophole".}
 
 func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
   let res = secp256k1_ec_privkey_tweak_add(

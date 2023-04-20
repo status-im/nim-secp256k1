@@ -35,7 +35,7 @@ type
 
   secp256k1_ecdh_hash_function* = proc (output: ptr byte,
                                         x32, y32: ptr byte,
-                                        data: pointer) {.cdecl, raises: [].}
+                                        data: pointer): cint {.cdecl, raises: [].}
 
   secp256k1_context* = object
   secp256k1_scratch_space* = object
@@ -311,23 +311,6 @@ template secp256k1_ecdh*(ctx: ptr secp256k1_context; output32: ptr byte;
                          privkey: ptr byte): cint =
   secp256k1_ecdh(ctx, output32, pubkey, privkey,
     secp256k1_ecdh_hash_function_default(), nil)
-
-proc secp256k1_ecdh_raw*(ctx: ptr secp256k1_context; output32: ptr byte;
-                         pubkey: ptr secp256k1_pubkey;
-                         input32: ptr byte): cint {.secp.}
-  ## Compute an EC Diffie-Hellman secret in constant time
-  ## Returns: 1: exponentiation was successful
-  ##         0: scalar was invalid (zero or overflow)
-  ## Args:    ctx:        pointer to a context object (cannot be NULL)
-  ## Out:     result:     a 33-byte array which will be populated by an ECDH
-  ##                      secret computed from the point and scalar in form
-  ##                      of compressed point
-  ## In:      pubkey:     a pointer to a secp256k1_pubkey containing an
-  ##                      initialized public key
-  ##          privkey:    a 32-byte scalar with which to multiply the point
-  ##
-
-## Multikey interface follows
 
 type
   secp256k1_xonly_pubkey* = object
