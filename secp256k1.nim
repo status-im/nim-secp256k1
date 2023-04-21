@@ -69,7 +69,7 @@ const
   SkMessageSize* = 32
     ## Size of message that can be signed
 
-  SkEdchSecretSize* = 32
+  SkEcdhSecretSize* = 32
     ## ECDH-agreed key size
 
 type
@@ -111,7 +111,7 @@ type
 
   SkEcdhSecret* {.requiresInit.} = object
     ## Representation of ECDH shared secret
-    data*: array[SkEdchSecretSize, byte]
+    data*: array[SkEcdhSecretSize, byte]
 
   SkEcdhHashFunc* = secp256k1_ecdh_hash_function
 
@@ -605,7 +605,7 @@ func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhSecret =
   ## Calculate ECDH shared secret.
   ## Default hash function and `requiresInit` should prevent this function
   ## from failing.
-  var secret {.noinit.}: array[SkEdchSecretSize, byte]
+  var secret {.noinit.}: array[SkEcdhSecretSize, byte]
   let res = secp256k1_ecdh(
       secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
       seckey.data.baseAddr)
