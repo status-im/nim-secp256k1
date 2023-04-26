@@ -1,4 +1,4 @@
 [submodule "secp256k1_wrapper/secp256k1"]
 	path = vendor/secp256k1
-	url = https://github.com/status-im/secp256k1.git
+	url = https://github.com/bitcoin-core/secp256k1.git
 	branch = master
