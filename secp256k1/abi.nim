@@ -2,20 +2,29 @@ import strutils
 from os import DirSep, AltSep, quoteShell
 
 const
-  wrapperPath = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0] &
-                "/../secp256k1_wrapper"
-  internalPath = wrapperPath & "/secp256k1"
+  vendorPath = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0] &
+                "/../vendor"
+  internalPath = vendorPath & "/secp256k1"
   srcPath = internalPath & "/src"
 
-{.passc: "-I" & quoteShell(wrapperPath).}
-{.passc: "-I" & quoteShell(internalPath).}
-{.passc: "-I" & quoteShell(srcPath).}
-{.passc: "-DHAVE_CONFIG_H".}
-
 when defined(amd64) and (defined(gcc) or defined(clang)):
-  {.passc: "-DUSE_ASM_X86_64"}
+  const asmFlags = " -DUSE_ASM_X86_64"
+else:
+  const asmFlags = ""
 
-{.compile: srcPath & "/secp256k1.c".}
+const compileFlags =
+  "-DENABLE_MODULE_ECDH=1 -DENABLE_MODULE_RECOVERY=1 -DENABLE_MODULE_SCHNORRSIG=1 -DENABLE_MODULE_EXTRAKEYS=1" &
+  " -I" & quoteShell(internalPath) &
+  " -I" & quoteShell(srcPath) &
+  asmFlags
+
+when (NimMajor, NimMinor) >= (1, 4):
+  {.compile(srcPath & "/secp256k1.c", compileFlags).}
+else:
+  # Per-compile flags not supported in 1.2
+  {.passc: compileFlags.}
+  {.compile: srcPath & "/secp256k1.c".}
+
 {.compile: srcPath & "/precomputed_ecmult.c".}
 {.compile: srcPath & "/precomputed_ecmult_gen.c".}
 
