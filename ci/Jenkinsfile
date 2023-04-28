@@ -35,25 +35,26 @@ pipeline {
     }
 
     stage('Tests') {
-      parallel {
-        stage('C') {
-          environment {
-            NIMLANG = 'c'
-          }
-          steps {
-            sh 'nimble test'
-          }
+      stage('C') {
+        environment {
+          NIMLANG = 'c'
         }
+        steps {
+          sh 'nimble test'
+        }
+      }
 
-        stage('C++') {
-          environment {
-            NIMLANG = 'cpp'
-          }
-          steps {
-            sh 'nimble test'
-          }
+      stage('C++') {
+        environment {
+          NIMLANG = 'cpp'
+        }
+        steps {
+          sh 'nimble test'
         }
       }
     }
+  }
+  post {
+    always { cleanWs() }
   }
 }
