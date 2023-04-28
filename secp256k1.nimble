@@ -20,7 +20,7 @@ let verbose = getEnv("V", "") notin ["", "0"]
 let styleCheckStyle = if (NimMajor, NimMinor) < (1, 6): "hint" else: "error"
 let cfg =
   " --styleCheck:usages --styleCheck:" & styleCheckStyle &
-  (if verbose: "" else: " --verbosity:0 --hints:off") &
+  (if verbose: "" else: " --verbosity:3 --hints:on") &
   " --skipParentCfg --skipUserCfg --outdir:build --nimcache:build/nimcache -f"
 
 proc build(args, path: string) =
