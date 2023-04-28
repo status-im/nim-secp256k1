@@ -34,7 +34,7 @@ pipeline {
       }
     }
 
-    stage('C') {
+    stage('Tests: C') {
       environment {
         NIMLANG = 'c'
       }
@@ -43,7 +43,7 @@ pipeline {
       }
     }
 
-    stage('C++') {
+    stage('Tests: C++') {
       environment {
         NIMLANG = 'cpp'
       }
