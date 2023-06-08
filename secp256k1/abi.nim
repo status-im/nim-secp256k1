@@ -18,13 +18,7 @@ const compileFlags =
   " -I" & quoteShell(srcPath) &
   asmFlags
 
-when (NimMajor, NimMinor) >= (1, 4):
-  {.compile(srcPath & "/secp256k1.c", compileFlags).}
-else:
-  # Per-compile flags not supported in 1.2
-  {.passc: compileFlags.}
-  {.compile: srcPath & "/secp256k1.c".}
-
+{.compile(srcPath & "/secp256k1.c", compileFlags).}
 {.compile: srcPath & "/precomputed_ecmult.c".}
 {.compile: srcPath & "/precomputed_ecmult_gen.c".}
 
