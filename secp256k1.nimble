@@ -26,9 +26,9 @@ proc build(args, path: string) =
   exec nimc & " " & lang & " " & cfg & " " & flags & " " & args & " " & path
 
 proc run(args, path: string) =
-  build args & " -r", path
+  build args & " --mm:refc -r", path
   if (NimMajor, NimMinor) > (1, 6):
-    build args & " --mm:refc -r", path
+    build args & " --mm:orc -r", path
 
 task test, "Tests":
   run "--threads:on", "tests/all_tests"
