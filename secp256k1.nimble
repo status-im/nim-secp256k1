@@ -10,6 +10,7 @@ installDirs   = @["vendor"]
 
 requires "nim >= 1.6.0",
          "stew",
+         "results",
          "nimcrypto"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
