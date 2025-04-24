@@ -11,7 +11,8 @@
 
 import
   strformat, typetraits,
-  stew/[byteutils, objects, results, ctops, ptrops],
+  results,
+  stew/[byteutils, objects, ctops, ptrops],
   ./secp256k1/abi
 
 from nimcrypto/utils import burnMem
