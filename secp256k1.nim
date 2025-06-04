@@ -91,8 +91,6 @@ type
 
   SkResult*[T] = Result[T, cstring]
 
-var secpContext {.threadvar.}: SkContext
-
 proc init(T: type SkContext): T = discard
 
 func fromHex(T: type seq[byte], s: string): SkResult[T] =

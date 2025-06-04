@@ -175,48 +175,6 @@ func fromBytes(T: type NibblesBuf, bytes: openArray[byte]): T {.noinit.} =
 func len(r: NibblesBuf): int =
   int(r.iend)
 
-func slice(r: NibblesBuf, ibegin: int, iend = -1): NibblesBuf {.noinit.} =
-  let e =
-    if iend < 0:
-      min(64, r.len + iend + 1)
-    else:
-      min(64, iend)
-
-  result.iend = uint8(e - ibegin)
-
-  var ilimb = ibegin.limb
-  block done:
-    let shift = (ibegin mod 16) shl 2
-    if shift == 0: # Must be careful not to shift by 64 which is UB!
-      staticFor i, 0 ..< result.limbs.len:
-        if uint8(i * 16) >= result.iend:
-          break done
-        result.limbs[i] = r.limbs[ilimb]
-        ilimb += 1
-    else:
-      staticFor i, 0 ..< result.limbs.len:
-        if uint8(i * 16) >= result.iend:
-          break done
-
-        let cur = r.limbs[ilimb] shl shift
-        ilimb += 1
-
-  if result.iend mod 16 > 0:
-    let
-      elimb = result.iend.limb
-      eshift = result.iend.shift + 4
-    result.limbs[elimb] = result.limbs[elimb] and (0xffffffffffffffff'u64 shl eshift)
-
-func fromHexPrefix(
-    T: type NibblesBuf, bytes: openArray[byte]
-): tuple[isLeaf: bool, nibbles: NibblesBuf] {.noinit.} =
-  if bytes.len > 0:
-    result.isLeaf = (bytes[0] and 0x20) != 0
-    let hasOddLen = (bytes[0] and 0x10) != 0
-  else:
-    result.isLeaf = false
-    result.nibbles.iend = 0
-
 type
   NextNodeKind = enum
     EmptyValue
