@@ -7,16 +7,10 @@ const
   internalPath = vendorPath & "/secp256k1"
   srcPath = internalPath & "/src"
 
-when defined(amd64) and (defined(gcc) or defined(clang)):
-  const asmFlags = " -DUSE_ASM_X86_64"
-else:
-  const asmFlags = ""
-
 const compileFlags =
-  "-DENABLE_MODULE_ECDH=1 -DENABLE_MODULE_RECOVERY=1 -DENABLE_MODULE_SCHNORRSIG=1 -DENABLE_MODULE_EXTRAKEYS=1" &
+  "-DENABLE_MODULE_ECDH=1 -DENABLE_MODULE_RECOVERY=1 -DENABLE_MODULE_EXTRAKEYS=1" &
   " -I" & quoteShell(internalPath) &
-  " -I" & quoteShell(srcPath) &
-  asmFlags
+  " -I" & quoteShell(srcPath)
 
 {.compile(srcPath & "/secp256k1.c", compileFlags).}
 {.compile: srcPath & "/precomputed_ecmult.c".}
