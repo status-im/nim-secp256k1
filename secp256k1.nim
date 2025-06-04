@@ -1,7 +1,14 @@
 import
   results,
-  ./secp256k1/abi,
   std/[typetraits]
+
+{.pragma: foobar, cdecl.}
+
+type
+  secp256k1_context = object
+
+  secp256k1_ecdsa_recoverable_signature = object
+    data: array[65, uint8]
 
 {.pragma: hexRaises, raises: [ValueError].}
 
@@ -45,33 +52,7 @@ func hexToByteArray(
     {.hexRaises.} =
   discard hexToByteArrayImpl(hexStr, output, fromIdx, toIdx)
 
-func hexToByteArray(hexStr: openArray[char], output: var openArray[byte])
-                    {.hexRaises.} =
-  hexToByteArray(hexStr, output, 0, output.high)
-
-func hexToByteArray[N: static[int]](hexStr: openArray[char]): array[N, byte]
-                    {.hexRaises, noinit.}=
-  hexToByteArray(hexStr, result)
-
-func hexToByteArray(hexStr: openArray[char], N: static int): array[N, byte]
-                    {.hexRaises, noinit.}=
-  hexToByteArray(hexStr, result)
-
-func hexToByteArrayStrict(hexStr: openArray[char], output: var openArray[byte])
-                          {.hexRaises.} =
-  if hexToByteArrayImpl(hexStr, output, 0, output.high) != hexStr.len:
-    raise (ref ValueError)(msg: "hex string too long")
-
-func hexToByteArrayStrict[N: static[int]](hexStr: openArray[char]): array[N, byte]
-                          {.hexRaises, noinit, inline.}=
-  hexToByteArrayStrict(hexStr, result)
-
-func hexToByteArrayStrict(hexStr: openArray[char], N: static int): array[N, byte]
-                          {.hexRaises, noinit, inline.}=
-  hexToByteArrayStrict(hexStr, result)
-
-func fromHex[N](A: type array[N, byte], hexStr: string): A
-             {.hexRaises, noinit, inline.}=
+func fromHex[N](A: type array[N, byte], hexStr: string): A =
   hexToByteArray(hexStr, result)
 
 func hexToSeqByte(hexStr: string): seq[byte]
@@ -85,9 +66,6 @@ func hexToSeqByte(hexStr: string): seq[byte]
   result = newSeq[byte](N)
   for i in 0 ..< N:
     result[i] = hexStr[2*i + skip].readHexChar shl 4 or hexStr[2*i + 1 + skip].readHexChar
-
-func baseAddr[T](x: openArray[T]): ptr T =
-  if x.len == 0: nil else: cast[ptr T](x)
 
 func toArray[T](N: static int, data: openArray[T]): array[N, T] =
   doAssert data.len == N
@@ -115,37 +93,20 @@ type
 
 var secpContext {.threadvar.}: SkContext
 
-template baseAddr(v: SkMessage): ptr byte =
-  baseAddr(array[SkMessageSize, byte](v))
+proc init(T: type SkContext): T = discard
 
-proc init(T: type SkContext): T =
-  let flags = cuint(SECP256K1_CONTEXT_VERIFY or SECP256K1_CONTEXT_SIGN)
-  result.context = secp256k1_context_create(flags)
-
-func getContext(): ptr secp256k1_context =
-  {.noSideEffect.}:
-    if isNil(secpContext.context):
-      secpContext = SkContext.init()
-    secpContext.context
-
-func fromHex*(T: type seq[byte], s: string): SkResult[T] =
+func fromHex(T: type seq[byte], s: string): SkResult[T] =
   try:
     ok(hexToSeqByte(s))
   except CatchableError:
     err("secp: cannot parse hex string")
 
-func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
-  if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.baseAddr) != 1:
-    return err("secp: invalid private key")
-
+func fromRaw(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   ok(T(data: toArray(32, data.toOpenArray(0, SkRawSecretKeySize - 1))))
 
 func fromHex*(T: type SkSecretKey, data: string): SkResult[T] =
   T.fromRaw(? seq[byte].fromHex(data))
 
 func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature =
-  var data {.noinit.}: secp256k1_ecdsa_recoverable_signature
-  let res = secp256k1_ecdsa_sign_recoverable(
-      getContext(), addr data, msg.baseAddr, key.data.baseAddr, nil, nil)
-  doAssert res == 1, "cannot create recoverable signature, key invalid?"
+  var data: secp256k1_ecdsa_recoverable_signature
   SkRecoverableSignature(data: data)
