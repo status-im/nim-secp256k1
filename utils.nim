@@ -19,18 +19,6 @@ type
 
   RlpItem = tuple[payload: Slice[int], typ: RlpNodeType]
 
-func raiseOutOfBounds() {.noreturn, noinline.} =
-  raise (ref MalformedRlpError)(msg: "out-of-bounds payload access")
-
-func raiseExpectedBlob() {.noreturn, noinline.} =
-  raise (ref RlpTypeMismatch)(msg: "expected blob")
-
-func raiseNonCanonical() {.noreturn, noinline.} =
-  raise (ref MalformedRlpError)(msg: "non-canonical encoding")
-
-func raiseIntOutOfBounds() {.noreturn, noinline.} =
-  raise (ref UnsupportedRlpError)(msg: "integer out of bounds")
-
 template view(input: openArray[byte], position: int): openArray[byte] =
   if position >= input.len:
     raiseOutOfBounds()
@@ -39,19 +27,19 @@ template view(input: openArray[byte], position: int): openArray[byte] =
 
 template view(input: openArray[byte], slice: Slice[int]): openArray[byte] =
   if slice.b >= input.len:
-    raiseOutOfBounds()
+    raiseAssert ""
 
   toOpenArray(input, slice.a, slice.b)
 
 func decodeInteger(input: openArray[byte]): uint64 =
   if input.len > sizeof(uint64):
-    raiseIntOutOfBounds()
+    raiseAssert ""
 
   if input.len == 0:
     0
   else:
     if input[0] == 0:
-      raiseNonCanonical()
+      raiseAssert ""
 
     var v: uint64
     for b in input:
@@ -60,7 +48,7 @@ func decodeInteger(input: openArray[byte]): uint64 =
 
 func rlpItem(input: openArray[byte], start = 0): RlpItem =
   if start >= len(input):
-    raiseOutOfBounds()
+    raiseAssert ""
 
   let
     length = len(input) - start # >= 1
@@ -71,9 +59,9 @@ func rlpItem(input: openArray[byte], start = 0): RlpItem =
   elif prefix <= 0xb7:
     let strLen = int(prefix - 0x80)
     if strLen >= length:
-      raiseOutOfBounds()
+      raiseAssert ""
     if strLen == 1 and input[start + 1] <= 0x7f:
-      raiseNonCanonical()
+      raiseAssert ""
 
     (start + 1 .. start + strLen, rlpBlob)
   elif prefix <= 0xbf:
@@ -83,16 +71,16 @@ func rlpItem(input: openArray[byte], start = 0): RlpItem =
       strLen = decodeInteger(input.view(start + 1 .. start + lenOfStrLen))
 
     if strLen < THRESHOLD_LIST_LEN:
-      raiseNonCanonical()
+      raiseAssert ""
 
     if strLen >= uint64(length - lenOfStrLen):
-      raiseOutOfBounds()
+      raiseAssert ""
 
     (start + 1 + lenOfStrLen .. start + lenOfStrLen + int(strLen), rlpBlob)
   elif prefix <= 0xf7:
     let listLen = int(prefix - 0xc0)
     if listLen >= length:
-      raiseOutOfBounds()
+      raiseAssert ""
 
     (start + 1 .. start + listLen, rlpList)
   else:
@@ -101,10 +89,10 @@ func rlpItem(input: openArray[byte], start = 0): RlpItem =
       listLen = decodeInteger(input.view(start + 1 .. start + lenOfListLen))
 
     if listLen < THRESHOLD_LIST_LEN:
-      raiseNonCanonical()
+      raiseAssert ""
 
     if listLen >= uint64(length - lenOfListLen):
-      raiseOutOfBounds()
+      raiseAssert ""
 
     (start + 1 + lenOfListLen .. start + lenOfListLen + int(listLen), rlpList)
 
@@ -140,16 +128,13 @@ func isList*(self: Rlp, position: int): bool =
 func isList*(self: Rlp): bool =
   self.isList(self.position)
 
-template maxBytes(o: type[Ordinal | uint64 | uint]): int =
-  sizeof(o)
-
 func toInt(self: Rlp, item: RlpItem, IntType: type): IntType =
   mixin maxBytes, to
   if item.typ != rlpBlob:
-    raiseExpectedBlob()
+    raiseAssert ""
 
   if item.payload.len > maxBytes(IntType):
-    raiseIntOutOfBounds()
+    raiseAssert ""
 
   for b in self.bytes.view(item.payload):
     result = (result shl 8) or IntType(b)
@@ -159,7 +144,7 @@ func toInt(self: Rlp, IntType: type): IntType =
 
 func toBytes*(self: Rlp, item: RlpItem): seq[byte] =
   if item.typ != rlpBlob:
-    raiseExpectedBlob()
+    raiseAssert ""
 
   @(self.bytes.view(item.payload))
 

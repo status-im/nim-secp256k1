@@ -1,110 +1,119 @@
-import
-  results,
-  std/[typetraits]
-
-{.pragma: foobar, cdecl.}
-
 type
-  secp256k1_context = object
+  Result*[T, E] = object
+    when T is void:
+      when E is void:
+        oResultPrivate: bool
+      else:
+        case oResultPrivate: bool
+        of false:
+          eResultPrivate: E
+        of true:
+          discard
+    else:
+      when E is void:
+        case oResultPrivate: bool
+        of false:
+          discard
+        of true:
+          vResultPrivate*: T
+      else:
+        case oResultPrivate: bool
+        of false:
+          eResultPrivate: E
+        of true:
+          vResultPrivate*: T
 
-  secp256k1_ecdsa_recoverable_signature = object
-    data: array[65, uint8]
+template ok*[T: not void, E](R: type Result[T, E], x: untyped): R =
+  R(oResultPrivate: true, vResultPrivate: x)
 
-{.pragma: hexRaises, raises: [ValueError].}
+template ok*[T: not void, E](self: var Result[T, E], x: untyped) =
+  self = ok(type self, x)
 
-proc readHexChar(c: char): byte
-                 {.hexRaises, noSideEffect, inline.} =
-  case c
-  of '0'..'9': result = byte(ord(c) - ord('0'))
-  of 'a'..'f': result = byte(ord(c) - ord('a') + 10)
-  of 'A'..'F': result = byte(ord(c) - ord('A') + 10)
-  else:
-    raise newException(ValueError, $c & " is not a hexadecimal character")
+template err[T; E: not void](R: type Result[T, E], x: untyped): R =
+  R(oResultPrivate: false, eResultPrivate: x)
 
-template skip0xPrefix(hexStr: openArray[char]): int =
-  if hexStr.len > 1 and hexStr[0] == '0' and hexStr[1] in {'x', 'X'}: 2
-  else: 0
+template err[T](R: type Result[T, cstring], x: string): R =
+  const s = x # avoid dangling cstring pointers
+  R(oResultPrivate: false, eResultPrivate: cstring(s))
 
-func hexToByteArrayImpl(
-    hexStr: openArray[char], output: var openArray[byte], fromIdx, toIdx: int):
-    int {.hexRaises.} =
-  var sIdx = skip0xPrefix(hexStr)
-  doAssert fromIdx >= 0 and
-    toIdx <= output.high and
-    fromIdx <= (toIdx + 1)
+template err[T; E: not void](self: var Result[T, E], x: untyped) =
+  self = err(type self, x)
 
-  let sz = toIdx + 1 - fromIdx
+template err[T](self: var Result[T, cstring], x: string) =
+  const s = x # Make sure we don't return a dangling pointer
+  self = err(type self, cstring(s))
 
-  if hexStr.len - sIdx < 2*sz:
-    raise (ref ValueError)(msg: "hex string too short")
+template ok*(v: auto): auto =
+  ok(typeof(result), v)
 
-  sIdx += fromIdx * 2
-  for bIdx in fromIdx ..< sz + fromIdx:
-    output[bIdx] =
-      (hexStr[sIdx].readHexChar shl 4) or
-      hexStr[sIdx + 1].readHexChar
-    inc(sIdx, 2)
+template ok*(): auto =
+  ok(typeof(result))
 
-  sIdx
+template err*(v: auto): auto =
+  err(typeof(result), v)
 
-func hexToByteArray(
-    hexStr: openArray[char], output: var openArray[byte], fromIdx, toIdx: int)
-    {.hexRaises.} =
-  discard hexToByteArrayImpl(hexStr, output, fromIdx, toIdx)
+template err*(): auto =
+  err(typeof(result))
 
-func fromHex[N](A: type array[N, byte], hexStr: string): A =
-  hexToByteArray(hexStr, result)
+func mapConvert*[T0: not void, E](
+    self: Result[T0, E], T1: type
+): Result[T1, E] {.inline.} =
+  case self.oResultPrivate
+  of true:
+    when T1 is void:
+      result.ok()
+    else:
+      result.ok(T1(self.vResultPrivate))
+  of false:
+    when E is void:
+      result.err()
+    else:
+      result.err(self.eResultPrivate)
 
-func hexToSeqByte(hexStr: string): seq[byte]
-                  {.hexRaises.} =
-  if (hexStr.len and 1) == 1:
-    raise (ref ValueError)(msg: "hex string must have even length")
+const pushGenericsOpenSym = defined(nimHasGenericsOpenSym2)
 
-  let skip = skip0xPrefix(hexStr)
-  let N = (hexStr.len - skip) div 2
+template valueOr*[T: not void, E](self: Result[T, E], def: untyped): T =
+  let s = (self) # TODO avoid copy
+  case s.oResultPrivate
+  of true:
+    s.vResultPrivate
+  of false:
+    when E isnot void:
+      when pushGenericsOpenSym:
+        {.push experimental: "genericsOpenSym".}
+      template error(): E {.used.} =
+        s.eResultPrivate
 
-  result = newSeq[byte](N)
-  for i in 0 ..< N:
-    result[i] = hexStr[2*i + skip].readHexChar shl 4 or hexStr[2*i + 1 + skip].readHexChar
+    def
 
-func toArray[T](N: static int, data: openArray[T]): array[N, T] =
-  doAssert data.len == N
-  copyMem(addr result[0], unsafeAddr data[0], N)
-
-export results
-
-const
-  SkRawSecretKeySize* = 32 # 256 div 8
-  SkMessageSize = 32
+template `?`*[T, E](self: Result[T, E]): auto =
+  let v = (self)
+  case v.oResultPrivate
+  of false:
+    when typeof(result) is typeof(v):
+      result = v
+      return
+    else:
+      when E is void:
+        result = err(typeof(result))
+        return
+      else:
+        result = err(typeof(result), v.eResultPrivate)
+        return
+  of true:
+    when not (T is void):
+      v.vResultPrivate
 
 type
   SkSecretKey* {.requiresInit.} = object
-    data: array[SkRawSecretKeySize, byte]
 
-  SkRecoverableSignature {.requiresInit.} = object
-    data: secp256k1_ecdsa_recoverable_signature
-
-  SkContext = object
-    context: ptr secp256k1_context
-
-  SkMessage* = distinct array[SkMessageSize, byte]
-
-  SkResult*[T] = Result[T, cstring]
-
-proc init(T: type SkContext): T = discard
+  SkResult[T] = Result[T, cstring]
 
 func fromHex(T: type seq[byte], s: string): SkResult[T] =
-  try:
-    ok(hexToSeqByte(s))
-  except CatchableError:
-    err("secp: cannot parse hex string")
+  ok(default(seq[byte]))
 
 func fromRaw(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
-  ok(T(data: toArray(32, data.toOpenArray(0, SkRawSecretKeySize - 1))))
+  ok(T())
 
 func fromHex*(T: type SkSecretKey, data: string): SkResult[T] =
   T.fromRaw(? seq[byte].fromHex(data))
-
-func signRecoverable*(key: SkSecretKey, msg: SkMessage): SkRecoverableSignature =
-  var data: secp256k1_ecdsa_recoverable_signature
-  SkRecoverableSignature(data: data)
