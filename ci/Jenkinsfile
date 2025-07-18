@@ -2,6 +2,7 @@ pipeline {
   agent { label 'macos && aarch64' }
 
   options {
+    disableRestartFromStage()
     disableConcurrentBuilds()
     /* manage how many builds we keep */
     buildDiscarder(logRotator(
