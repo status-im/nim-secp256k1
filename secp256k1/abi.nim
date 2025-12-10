@@ -1,5 +1,4 @@
-import strutils
-from os import DirSep, AltSep #, quoteShell
+import strutils, os
 
 const
   vendorPath = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0] &
@@ -12,11 +11,19 @@ when defined(amd64) and (defined(gcc) or defined(clang)):
 else:
   const asmFlags = ""
 
-const compileFlags =
-  "-DENABLE_MODULE_ECDH=1 -DENABLE_MODULE_RECOVERY=1 -DENABLE_MODULE_SCHNORRSIG=1 -DENABLE_MODULE_EXTRAKEYS=1" &
-  " -I\"" & internalPath & "\"" &
-  " -I\"" & srcPath & "\"" &
-  asmFlags
+# quoteShell is not defined when compiling to bare metal
+when not defined(`any`) and not defined(standalone):
+  const compileFlags =
+    "-DENABLE_MODULE_ECDH=1 -DENABLE_MODULE_RECOVERY=1 -DENABLE_MODULE_SCHNORRSIG=1 -DENABLE_MODULE_EXTRAKEYS=1" &
+    " -I" & quoteShell(internalPath) &
+    " -I" & quoteShell(srcPath) &
+    asmFlags
+else:
+  const compileFlags =
+    "-DENABLE_MODULE_ECDH=1 -DENABLE_MODULE_RECOVERY=1 -DENABLE_MODULE_SCHNORRSIG=1 -DENABLE_MODULE_EXTRAKEYS=1" &
+    " -I\"" & internalPath & "\"" &
+    " -I\"" & srcPath & "\"" &
+    asmFlags
 
 {.compile(srcPath & "/secp256k1.c", compileFlags).}
 {.compile: srcPath & "/precomputed_ecmult.c".}
