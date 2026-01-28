@@ -71,7 +71,7 @@ const
   )
   SECP256K1_CONTEXT_NONE* = (SECP256K1_FLAGS_TYPE_CONTEXT)
 
-  ## * Flag to pass to secp256k1_ec_pubkey_serialize and secp256k1_ec_privkey_export.
+  ## * Flag to pass to secp256k1_ec_pubkey_serialize and secp256k1_ec_seckey_export.
   SECP256K1_EC_COMPRESSED* = (
     SECP256K1_FLAGS_TYPE_COMPRESSION or SECP256K1_FLAGS_BIT_COMPRESSION)
   SECP256K1_EC_UNCOMPRESSED* = (SECP256K1_FLAGS_TYPE_COMPRESSION)
@@ -189,7 +189,7 @@ proc secp256k1_ec_pubkey_create*(
   pubkey: ptr secp256k1_pubkey;
   seckey: ptr byte): cint {.secp.}
 
-proc secp256k1_ec_privkey_negate*(
+proc secp256k1_ec_seckey_negate*(
   ctx: ptr secp256k1_context;
   seckey: ptr byte): cint {.secp.}
 
@@ -197,7 +197,7 @@ proc secp256k1_ec_pubkey_negate*(
   ctx: ptr secp256k1_context;
   pubkey: ptr secp256k1_pubkey): cint {.secp.}
 
-proc secp256k1_ec_privkey_tweak_add*(
+proc secp256k1_ec_seckey_tweak_add*(
   ctx: ptr secp256k1_context;
   seckey: ptr byte;
   tweak: ptr byte): cint {.secp.}
@@ -207,7 +207,7 @@ proc secp256k1_ec_pubkey_tweak_add*(
   pubkey: ptr secp256k1_pubkey;
   tweak: ptr byte): cint {.secp.}
 
-proc secp256k1_ec_privkey_tweak_mul*(
+proc secp256k1_ec_seckey_tweak_mul*(
   ctx: ptr secp256k1_context;
   seckey: ptr byte;
   tweak: ptr byte): cint {.secp.}

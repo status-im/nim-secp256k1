@@ -1,4 +1,4 @@
-## Copyright (c) 2018-2023 Status Research & Development GmbH
+## Copyright (c) 2018-2026 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
 ##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
@@ -657,7 +657,7 @@ proc default*(T: type SkSchnorrSignature): T {.error: "loophole".}
 proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
 
 func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
-  let res = secp256k1_ec_privkey_tweak_add(
+  let res = secp256k1_ec_seckey_tweak_add(
     secp256k1_context_no_precomp, secretKey.data.baseAddr, tweak.baseAddr)
   if res != 1:
     err("Tweak out of range, or invalid private key")
@@ -665,10 +665,9 @@ func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[voi
     ok()
 
 func tweakMul*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
-  let res = secp256k1_ec_privkey_tweak_mul(
+  let res = secp256k1_ec_seckey_tweak_mul(
     secp256k1_context_no_precomp, secretKey.data.baseAddr, tweak.baseAddr)
   if res != 1:
     err("Tweak out of range, or equal to zero")
   else:
     ok()
-
