@@ -38,7 +38,7 @@ export results
 # * Functions like "fromRaw/toRaw" are balanced and will always rountrip
 # * Functions like `fromRaw` are not called `init` because they may fail
 # * No CatchableErrors
-# * Where `secp256k1_context_no_precomp`, we surround the code with
+# * Where `secp256k1_context_static`, we surround the code with
 #   `{.noSideEffect.}` as the compiler cannot deduce that this is a constant
 
 const
@@ -202,7 +202,7 @@ proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
   var data{.noinit.}: array[SkRawSecretKeySize, byte]
 
   while rng(data):
-    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.baseAddr) == 1:
+    if secp256k1_ec_seckey_verify(secp256k1_context_static, data.baseAddr) == 1:
       return ok(T(data: data))
 
   return err("secp: cannot get random bytes for key")
@@ -224,7 +224,7 @@ proc random*(T: type SkSecretKey, rng: FoolproofRng): T =
 
   for _ in 0..1000*1000:
     rng(data)
-    if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.baseAddr) == 1:
+    if secp256k1_ec_seckey_verify(secp256k1_context_static, data.baseAddr) == 1:
       return T(data: data)
 
   result = T(data: default(array[32, byte])) # Silence compiler
@@ -236,7 +236,7 @@ func fromRaw*(T: type SkSecretKey, data: openArray[byte]): SkResult[T] =
   if len(data) < SkRawSecretKeySize:
     return err(static(&"secp: raw private key should be {SkRawSecretKeySize} bytes"))
 
-  if secp256k1_ec_seckey_verify(secp256k1_context_no_precomp, data.baseAddr) != 1:
+  if secp256k1_ec_seckey_verify(secp256k1_context_static, data.baseAddr) != 1:
     return err("secp: invalid private key")
 
   ok(T(data: toArray(32, data.toOpenArray(0, SkRawSecretKeySize - 1))))
@@ -279,7 +279,7 @@ func fromRaw*(T: type SkPublicKey, data: openArray[byte]): SkResult[T] =
 
   var key {.noinit.}: secp256k1_pubkey
   if secp256k1_ec_pubkey_parse(
-      secp256k1_context_no_precomp, addr key, data.baseAddr, csize_t(length)) != 1:
+      secp256k1_context_static, addr key, data.baseAddr, csize_t(length)) != 1:
     return err("secp: cannot parse public key")
 
   ok(SkPublicKey(data: key))
@@ -293,7 +293,7 @@ func toRaw*(pubkey: SkPublicKey): array[SkRawPublicKeySize, byte] =
   ## Serialize Secp256k1 `public key` ``key`` to raw uncompressed form
   var length = csize_t(len(result))
   let res = secp256k1_ec_pubkey_serialize(
-    secp256k1_context_no_precomp, result.baseAddr, addr length,
+    secp256k1_context_static, result.baseAddr, addr length,
     unsafeAddr pubkey.data, SECP256K1_EC_UNCOMPRESSED)
   doAssert res == 1, "Can't fail, per documentation"
 
@@ -304,7 +304,7 @@ func toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, 
   ## Serialize Secp256k1 `public key` ``key`` to raw compressed form
   var length = csize_t(len(result))
   let res = secp256k1_ec_pubkey_serialize(
-    secp256k1_context_no_precomp, result.baseAddr, addr length,
+    secp256k1_context_static, result.baseAddr, addr length,
     unsafeAddr pubkey.data, SECP256K1_EC_COMPRESSED)
   doAssert res == 1, "Can't fail, per documentation"
 
@@ -315,7 +315,7 @@ func toXOnly*(pk: SkPublicKey): SkXOnlyPublicKey =
   ## Gets a pubkey that reveals only the x-coordinate on the curve.
   var data {.noinit.}: secp256k1_xonly_pubkey
   let res = secp256k1_xonly_pubkey_from_pubkey(
-    secp256k1_context_no_precomp, addr data, nil, unsafeAddr pk.data)
+    secp256k1_context_static, addr data, nil, unsafeAddr pk.data)
   doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
 
   SkXOnlyPublicKey(data: data)
@@ -329,7 +329,7 @@ func fromRaw*(T: type SkXOnlyPublicKey, data: openArray[byte]): SkResult[T] =
 
   var key {.noinit.}: secp256k1_xonly_pubkey
   if secp256k1_xonly_pubkey_parse(
-      secp256k1_context_no_precomp, addr key, data.baseAddr) != 1:
+      secp256k1_context_static, addr key, data.baseAddr) != 1:
     return err("secp: cannot parse x-only public key")
 
   ok(SkXOnlyPublicKey(data: key))
@@ -342,7 +342,7 @@ func fromHex*(T: type SkXOnlyPublicKey, data: string): SkResult[T] =
 func toRaw*(pubkey: SkXOnlyPublicKey): array[SkRawXOnlyPublicKeySize, byte] =
   ## Serialize Secp256k1 `x-only public key` ``key`` to raw form.
   let res = secp256k1_xonly_pubkey_serialize(
-    secp256k1_context_no_precomp, result.baseAddr, unsafeAddr pubkey.data)
+    secp256k1_context_static, result.baseAddr, unsafeAddr pubkey.data)
   doAssert res == 1, "Can't fail, per documentation"
 
 func toHex*(pubkey: SkXOnlyPublicKey): string =
@@ -355,7 +355,7 @@ func fromRaw*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
 
   var sig {.noinit.}: secp256k1_ecdsa_signature
   if secp256k1_ecdsa_signature_parse_compact(
-      secp256k1_context_no_precomp, addr sig, data.baseAddr) != 1:
+      secp256k1_context_static, addr sig, data.baseAddr) != 1:
     return err("secp: cannot parse signaure")
 
   ok(T(data: sig))
@@ -368,7 +368,7 @@ func fromDer*(T: type SkSignature, data: openArray[byte]): SkResult[T] =
 
   var sig {.noinit.}: secp256k1_ecdsa_signature
   if secp256k1_ecdsa_signature_parse_der(
-      secp256k1_context_no_precomp, addr sig, data.baseAddr, csize_t(len(data))) != 1:
+      secp256k1_context_static, addr sig, data.baseAddr, csize_t(len(data))) != 1:
     return err("secp: cannot parse DER signature")
 
   ok(T(data: sig))
@@ -381,7 +381,7 @@ func fromHex*(T: type SkSignature, data: string): SkResult[T] =
 func toRaw*(sig: SkSignature): array[SkRawSignatureSize, byte] =
   ## Serialize signature to compact binary form
   let res = secp256k1_ecdsa_signature_serialize_compact(
-    secp256k1_context_no_precomp, result.baseAddr, unsafeAddr sig.data)
+    secp256k1_context_static, result.baseAddr, unsafeAddr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
 
 func toDer*(sig: SkSignature, data: var openArray[byte]): int =
@@ -393,7 +393,7 @@ func toDer*(sig: SkSignature, data: var openArray[byte]): int =
   var buffer: array[SkDerSignatureMaxSize, byte]
   var plength = csize_t(len(buffer))
   let res = secp256k1_ecdsa_signature_serialize_der(
-    secp256k1_context_no_precomp, buffer.baseAddr, addr plength,
+    secp256k1_context_static, buffer.baseAddr, addr plength,
     unsafeAddr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
   result = int(plength)
@@ -420,7 +420,7 @@ func fromRaw*(T: type SkRecoverableSignature, data: openArray[byte]): SkResult[T
 
   var sig {.noinit.}: secp256k1_ecdsa_recoverable_signature
   if secp256k1_ecdsa_recoverable_signature_parse_compact(
-      secp256k1_context_no_precomp, addr sig, data.baseAddr, recid) != 1:
+      secp256k1_context_static, addr sig, data.baseAddr, recid) != 1:
     return err("secp: invalid recoverable signature")
 
   ok(T(data: sig))
@@ -434,7 +434,7 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
   ## Converts recoverable signature to compact binary form
   var recid = cint(0)
   let res = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-      secp256k1_context_no_precomp, result.baseAddr, addr recid, unsafeAddr sig.data)
+      secp256k1_context_static, result.baseAddr, addr recid, unsafeAddr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
 
   result[64] = byte(recid)
@@ -605,7 +605,7 @@ func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhSecret =
   ## from failing.
   var secret {.noinit.}: array[SkEcdhSecretSize, byte]
   let res = secp256k1_ecdh(
-      secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
+      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
       seckey.data.baseAddr)
   doAssert res == 1, "cannot compute ECDH secret, keys invalid?"
 
@@ -618,7 +618,7 @@ func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
   ## although other inputs have been initialized properly.
   var secret {.noinit.}: array[N, byte]
   if secp256k1_ecdh(
-      secp256k1_context_no_precomp, secret.baseAddr, unsafeAddr pubkey.data,
+      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
       seckey.data.baseAddr, hashfn, data) != 1:
     return err("cannot compute ECDH secret, keys invalid?")
 
@@ -658,7 +658,7 @@ proc default*(T: type SkEcdhSecret): T {.error: "loophole".}
 
 func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
   let res = secp256k1_ec_seckey_tweak_add(
-    secp256k1_context_no_precomp, secretKey.data.baseAddr, tweak.baseAddr)
+    secp256k1_context_static, secretKey.data.baseAddr, tweak.baseAddr)
   if res != 1:
     err("Tweak out of range, or invalid private key")
   else:
@@ -666,7 +666,7 @@ func tweakAdd*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[voi
 
 func tweakMul*(secretKey: var SkSecretKey, tweak: openArray[byte]): SkResult[void] =
   let res = secp256k1_ec_seckey_tweak_mul(
-    secp256k1_context_no_precomp, secretKey.data.baseAddr, tweak.baseAddr)
+    secp256k1_context_static, secretKey.data.baseAddr, tweak.baseAddr)
   if res != 1:
     err("Tweak out of range, or equal to zero")
   else:
