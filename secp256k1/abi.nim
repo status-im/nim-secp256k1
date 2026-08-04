@@ -83,16 +83,16 @@ const
   SECP256K1_TAG_PUBKEY_HYBRID_EVEN* = 0x00000006
   SECP256K1_TAG_PUBKEY_HYBRID_ODD* = 0x00000007
 
-var secp256k1_context_no_precomp_imp {.
-  importc: "secp256k1_context_no_precomp".}: ptr secp256k1_context
+var secp256k1_context_static_imp {.
+  importc: "secp256k1_context_static".}: ptr secp256k1_context
 
 var secp256k1_ecdh_hash_function_default_imp {.
   importc: "secp256k1_ecdh_hash_function_default".}: secp256k1_ecdh_hash_function
 
-template secp256k1_context_no_precomp*: ptr secp256k1_context =
+template secp256k1_context_static*: ptr secp256k1_context =
   # This is really a constant
   {.noSideEffect.}:
-    secp256k1_context_no_precomp_imp
+    secp256k1_context_static_imp
 
 template secp256k1_ecdh_hash_function_default*: secp256k1_ecdh_hash_function =
   # This is really a constant
