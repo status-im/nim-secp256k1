@@ -8,10 +8,10 @@ license       = "Apache License 2.0"
 skipDirs      = @["tests"]
 installDirs   = @["vendor"]
 
-requires "nim >= 1.6.0",
-         "stew",
-         "results",
-         "nimcrypto"
+requires "nim >= 1.6.18",
+         "nimcrypto >= 0.7.0",
+         "results >= 0.5.0",
+         "stew >= 0.5.0"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
