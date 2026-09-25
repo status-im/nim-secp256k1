@@ -1,0 +1,57 @@
+name: Version
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Check bundled secp256k1 version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+          persist-credentials: false
+      - name: Require a matching package version when secp256k1 changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          def git(*args):
+              return subprocess.check_output(["git", *args], text=True).strip()
+
+          def fail(message):
+              raise SystemExit(f"::error::{message}")
+
+          def package_version(text):
+              match = re.search(r'^version\s*=\s*"(\d+\.\d+\.\d+\.\d+\.\d+)"\s*$', text, re.MULTILINE)
+              if not match:
+                  fail("Expected a five-component version in secp256k1.nimble.")
+              return tuple(map(int, match[1].split(".")))
+
+          base = os.environ["BASE_SHA"]
+          if git("rev-parse", f"{base}:vendor/secp256k1") == git("rev-parse", "HEAD:vendor/secp256k1"):
+              print("Bundled secp256k1 is unchanged; no version bump required.")
+              raise SystemExit(0)
+
+          previous = package_version(git("show", f"{base}:secp256k1.nimble"))
+          current = package_version(Path("secp256k1.nimble").read_text())
+          cmake = Path("vendor/secp256k1/CMakeLists.txt").read_text()
+          upstream = re.search(r'^\s*VERSION\s+(\d+\.\d+\.\d+)\s*$', cmake, re.MULTILINE)
+          if not upstream:
+              fail("Cannot read the bundled libsecp256k1 version from CMakeLists.txt.")
+          if current[2:] != tuple(map(int, upstream[1].split("."))):
+              fail(f"Set the last three components of the secp256k1.nimble version to {upstream[1]} to match bundled libsecp256k1.")
+          if current <= previous:
+              fail("Bundled secp256k1 changed; increase the version in secp256k1.nimble.")
+          print("Package version increased and matches bundled libsecp256k1.")
+          PY
