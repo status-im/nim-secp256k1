@@ -9,3 +9,5 @@ ci/NimBinaries/
 ci/nim/
 
 *.exe
+
+gen

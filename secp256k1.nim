@@ -113,6 +113,8 @@ type
 
   SkEcdhHashFunc* = secp256k1_ecdh_hash_function
 
+  SkConstPtrByte* = ConstPtrByte
+
   SkResult*[T] = Result[T, cstring]
 
 ##
@@ -122,16 +124,16 @@ type
 var secpContext {.threadvar.}: SkContext
   ## Thread local variable which holds current context
 
-proc illegalCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
+proc illegalCallback(message: ConstCstring, data: pointer) {.cdecl, raises: [].} =
   # Internal panic - should never happen - all objects we pass into functions
   # are guaranteed valid per their type
-  echo message
+  echo cast[cstring](message)
   echo getStackTrace()
   quit 1
 
-proc errorCallback(message: cstring, data: pointer) {.cdecl, raises: [].} =
+proc errorCallback(message: ConstCstring, data: pointer) {.cdecl, raises: [].} =
   # Internal panic - should never happen
-  echo message
+  echo cast[cstring](message)
   echo getStackTrace()
   quit 1
 
@@ -620,6 +622,19 @@ func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
   if secp256k1_ecdh(
       secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
       seckey.data.baseAddr, hashfn, data) != 1:
+    return err("cannot compute ECDH secret, keys invalid?")
+
+  ok(secret)
+
+func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
+           hashfn: proc (output: ptr byte, x32, y32: ptr byte,
+                         data: pointer): cint {.cdecl, raises: [].},
+           data: pointer): SkResult[array[N, byte]] {.
+    deprecated: "use `SkConstPtrByte` for `x32` and `y32`".} =
+  var secret {.noinit.}: array[N, byte]
+  if secp256k1_ecdh(
+      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
+      seckey.data.baseAddr, cast[SkEcdhHashFunc](hashfn), data) != 1:
     return err("cannot compute ECDH secret, keys invalid?")
 
   ok(secret)
