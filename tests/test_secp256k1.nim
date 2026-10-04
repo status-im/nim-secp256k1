@@ -77,12 +77,12 @@ suite "secp256k1":
       SkMessage.fromBytes(array[32, byte](msg0)).isOk()
 
   test "Custom hash function":
-    proc customHash(output: ptr byte, x32, y32: ptr byte, data: pointer): cint
+    proc customHash(output: ptr byte, x32, y32: SkConstPtrByte, data: pointer): cint
                     {.cdecl, raises: [].} =
       # Save x and y as uncompressed public key
       output[] = 0x04
-      copyMem(output.offset(1), x32, 32)
-      copyMem(output.offset(33), y32, 32)
+      copyMem(output.offset(1), cast[pointer](x32), 32)
+      copyMem(output.offset(33), cast[pointer](y32), 32)
       return 1
 
     proc skone(_: type SkSecretKey): SkSecretKey =
