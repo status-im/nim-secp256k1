@@ -60,6 +60,7 @@ task test_asan, "Run all tests with ASAN":
       " --passL:-fsanitize=address,undefined" &
       " --passC:-fno-sanitize-recover=undefined" &
       " --passC:-fno-sanitize-merge" &
-      " --passC:-fno-omit-frame-pointer"
+      " --passC:-fno-omit-frame-pointer" &
+      " --passC:-O1"  # error: inline assembly requires more registers than available
     for args in testArguments:
       run args & asanArgs, "tests/all_tests"
