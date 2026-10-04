@@ -631,7 +631,13 @@ func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
                          data: pointer): cint {.cdecl, raises: [].},
            data: pointer): SkResult[array[N, byte]] {.
     deprecated: "use `SkConstPtrByte` for `x32` and `y32`".} =
-  ecdh[N](seckey, pubkey, cast[SkEcdhHashFunc](hashfn), data)
+  var secret {.noinit.}: array[N, byte]
+  if secp256k1_ecdh(
+      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
+      seckey.data.baseAddr, cast[SkEcdhHashFunc](hashfn), data) != 1:
+    return err("cannot compute ECDH secret, keys invalid?")
+
+  ok(secret)
 
 func clear*(v: var SkSecretKey) =
   ## Wipe and clear memory of Secp256k1 `private key`.
