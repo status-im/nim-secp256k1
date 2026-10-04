@@ -127,13 +127,13 @@ var secpContext {.threadvar.}: SkContext
 proc illegalCallback(message: ConstCstring, data: pointer) {.cdecl, raises: [].} =
   # Internal panic - should never happen - all objects we pass into functions
   # are guaranteed valid per their type
-  echo message
+  echo cast[cstring](message)
   echo getStackTrace()
   quit 1
 
 proc errorCallback(message: ConstCstring, data: pointer) {.cdecl, raises: [].} =
   # Internal panic - should never happen
-  echo message
+  echo cast[cstring](message)
   echo getStackTrace()
   quit 1
 
