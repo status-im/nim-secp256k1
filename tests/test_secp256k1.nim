@@ -27,7 +27,13 @@ const
   ]
 
 proc workingRng(data: var openArray[byte]): bool =
-  data[0] += 1
+  for i in 0 ..< data.len:
+    data[i] = byte(i + 1)
+  true
+
+proc otherRng(data: var openArray[byte]): bool =
+  for i in 0 ..< data.len:
+    data[i] = byte(i + 2)
   true
 
 proc brokenRng(data: var openArray[byte]): bool = false
@@ -52,7 +58,7 @@ suite "secp256k1":
     let
       sk = SkSecretKey.random(workingRng)[]
       pk = sk.toPublicKey()
-      otherPk = SkSecretKey.random(workingRng)[].toPublicKey()
+      otherPk = SkSecretKey.random(otherRng)[].toPublicKey()
       sig = sign(sk, msg0)
       sig2 = signRecoverable(sk, msg0)
       sig3 = signSchnorr(sk, msg0, workingRng)[]
