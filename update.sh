@@ -134,6 +134,12 @@ EOF
 
 rm -rf gen
 
+# Wrapper version (`major.minor`) followed by the bundled libsecp256k1 version
+sed -i.bak -E \
+  -e "s/^(version *= *\"[0-9]+\.[0-9]+)\.[0-9]+\.[0-9]+\.[0-9]+\"/\1.${VERSION}\"/" \
+  secp256k1.nimble
+rm -f secp256k1.nimble.bak  # Portable GNU/macOS `sed` needs backup
+
 ! git diff --exit-code > /dev/null || { echo "This repository is already up to date" ; exit 0 ; }
 
 git commit -a \
