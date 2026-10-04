@@ -24,6 +24,14 @@ git submodule update --init
 nimble test
 ```
 
+# Version numbering
+
+Package versions combine the Nim wrapper version (`major.minor`) with the bundled
+libsecp256k1 version (`major.minor.patch`). For example, `0.7.0.8.0` means wrapper
+version `0.7` with libsecp256k1 `0.8.0`. The version is maintained manually in
+`secp256k1.nimble`; update the wrapper prefix for wrapper releases and the upstream
+suffix when updating the bundled C library.
+
 ## License
 
 Licensed and distributed under either of
