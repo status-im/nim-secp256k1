@@ -1,17 +1,17 @@
 mode = ScriptMode.Verbose
 
 packageName   = "secp256k1"
-version       = "0.7.0.8.0"
+version       = "0.8.0.8.0"
 author        = "Status Research & Development GmbH"
 description   = "A wrapper for the libsecp256k1 C library"
 license       = "Apache License 2.0"
 skipDirs      = @["tests"]
 installDirs   = @["vendor"]
 
-requires "nim >= 1.6.18",
+requires "nim >= 2.2.0",
          "nimcrypto >= 0.7.0",
          "results >= 0.5.0",
-         "stew >= 0.5.0"
+         "stew >= 0.6.0"
 
 let nimc = getEnv("NIMC", "nim") # Which nim compiler to use
 let lang = getEnv("NIMLANG", "c") # Which backend (c/cpp/js)
@@ -40,11 +40,10 @@ proc run(args, path: string) =
 task test, "Run all tests":
   for args in testArguments:
     run args & " --mm:refc", "tests/all_tests"
-    if (NimMajor, NimMinor) > (1, 6):
-      run args & " --mm:orc", "tests/all_tests"
+    run args & " --mm:orc", "tests/all_tests"
 
 task test_asan, "Run all tests with ASAN":
-  if platform != "x86" and (NimMajor, NimMinor) >= (2, 2):
+  if platform != "x86":
     try:
       exec "echo '#if __clang_major__ < 20\n#error\n#endif' | clang -E - >/dev/null"
     except OSError:

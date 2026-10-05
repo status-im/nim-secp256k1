@@ -13,7 +13,7 @@ pipeline {
 
   environment {
     /* Nim has to be built in Compiler stage. */
-    PATH = "${PATH}:${WORKSPACE}/ci/nim/bin"
+    PATH = "${WORKSPACE}/ci/nim/bin:${PATH}"
   }
 
   stages {
@@ -31,7 +31,7 @@ pipeline {
 
     stage('Deps') {
       steps {
-        sh 'nimble install -y --depsOnly'
+        sh 'nimble --nimbleDir:"${WORKSPACE}/.nimble" install -y --depsOnly'
       }
     }
 
@@ -40,7 +40,7 @@ pipeline {
         NIMLANG = 'c'
       }
       steps {
-        sh 'nimble test'
+        sh 'nimble --nimbleDir:"${WORKSPACE}/.nimble" test'
       }
     }
 
@@ -49,7 +49,7 @@ pipeline {
         NIMLANG = 'cpp'
       }
       steps {
-        sh 'nimble test'
+        sh 'nimble --nimbleDir:"${WORKSPACE}/.nimble" test'
       }
     }
   }

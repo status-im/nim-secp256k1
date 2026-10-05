@@ -1,4 +1,4 @@
-import strutils, os
+import std/[strutils, os]
 
 const
   vendorPath = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0] &
