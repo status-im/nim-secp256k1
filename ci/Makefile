@@ -16,7 +16,7 @@ else
  MAKE_CMD = make
 endif
 
-compiler: NIM_COMMIT ?= version-1-6
+compiler: NIM_COMMIT ?= version-2-2
 compiler: QUICK_AND_DIRTY_COMPILER ?= 1
 compiler: QUICK_AND_DIRTY_NIMBLE ?= 1
 compiler: CC ?= gcc
