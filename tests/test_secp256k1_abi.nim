@@ -1,4 +1,4 @@
-import ../secp256k1/abi, unittest
+import ../secp256k1/abi, std/unittest
 
 {.used.}
 

@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import
-  strformat, typetraits,
+  std/[strformat, typetraits],
   results,
   stew/[byteutils, objects, ctops, ptrops],
   ./secp256k1/abi
@@ -38,8 +38,6 @@ export results
 # * Functions like "fromRaw/toRaw" are balanced and will always rountrip
 # * Functions like `fromRaw` are not called `init` because they may fail
 # * No CatchableErrors
-# * Where `secp256k1_context_static`, we surround the code with
-#   `{.noSideEffect.}` as the compiler cannot deduce that this is a constant
 
 const
   SkRawSecretKeySize* = 32 # 256 div 8
@@ -183,11 +181,11 @@ func fromHex*(T: type seq[byte], s: string): SkResult[T] =
     err("secp: cannot parse hex string")
 
 type
-  Rng* = proc(data: var openArray[byte]): bool {.raises: [Defect], gcsafe.}
+  Rng* = proc(data: var openArray[byte]): bool {.raises: [], gcsafe.}
     ## A function that fills data with random bytes from a cryptographically
     ## secure source or returns false
 
-  FoolproofRng* = proc(data: var openArray[byte]) {.raises: [Defect], gcsafe.}
+  FoolproofRng* = proc(data: var openArray[byte]) {.raises: [], gcsafe.}
     ## The world will run out of fools before this RNG fails!
 
 proc random*(T: type SkSecretKey, rng: Rng): SkResult[T] =
@@ -296,7 +294,7 @@ func toRaw*(pubkey: SkPublicKey): array[SkRawPublicKeySize, byte] =
   var length = csize_t(len(result))
   let res = secp256k1_ec_pubkey_serialize(
     secp256k1_context_static, result.baseAddr, addr length,
-    unsafeAddr pubkey.data, SECP256K1_EC_UNCOMPRESSED)
+    addr pubkey.data, SECP256K1_EC_UNCOMPRESSED)
   doAssert res == 1, "Can't fail, per documentation"
 
 func toHex*(pubkey: SkPublicKey): string =
@@ -307,7 +305,7 @@ func toRawCompressed*(pubkey: SkPublicKey): array[SkRawCompressedPublicKeySize, 
   var length = csize_t(len(result))
   let res = secp256k1_ec_pubkey_serialize(
     secp256k1_context_static, result.baseAddr, addr length,
-    unsafeAddr pubkey.data, SECP256K1_EC_COMPRESSED)
+    addr pubkey.data, SECP256K1_EC_COMPRESSED)
   doAssert res == 1, "Can't fail, per documentation"
 
 func toHexCompressed*(pubkey: SkPublicKey): string =
@@ -317,7 +315,7 @@ func toXOnly*(pk: SkPublicKey): SkXOnlyPublicKey =
   ## Gets a pubkey that reveals only the x-coordinate on the curve.
   var data {.noinit.}: secp256k1_xonly_pubkey
   let res = secp256k1_xonly_pubkey_from_pubkey(
-    secp256k1_context_static, addr data, nil, unsafeAddr pk.data)
+    secp256k1_context_static, addr data, nil, addr pk.data)
   doAssert res == 1, "cannot get xonly pubkey from pubkey, key invalid?"
 
   SkXOnlyPublicKey(data: data)
@@ -344,7 +342,7 @@ func fromHex*(T: type SkXOnlyPublicKey, data: string): SkResult[T] =
 func toRaw*(pubkey: SkXOnlyPublicKey): array[SkRawXOnlyPublicKeySize, byte] =
   ## Serialize Secp256k1 `x-only public key` ``key`` to raw form.
   let res = secp256k1_xonly_pubkey_serialize(
-    secp256k1_context_static, result.baseAddr, unsafeAddr pubkey.data)
+    secp256k1_context_static, result.baseAddr, addr pubkey.data)
   doAssert res == 1, "Can't fail, per documentation"
 
 func toHex*(pubkey: SkXOnlyPublicKey): string =
@@ -383,7 +381,7 @@ func fromHex*(T: type SkSignature, data: string): SkResult[T] =
 func toRaw*(sig: SkSignature): array[SkRawSignatureSize, byte] =
   ## Serialize signature to compact binary form
   let res = secp256k1_ecdsa_signature_serialize_compact(
-    secp256k1_context_static, result.baseAddr, unsafeAddr sig.data)
+    secp256k1_context_static, result.baseAddr, addr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
 
 func toDer*(sig: SkSignature, data: var openArray[byte]): int =
@@ -396,7 +394,7 @@ func toDer*(sig: SkSignature, data: var openArray[byte]): int =
   var plength = csize_t(len(buffer))
   let res = secp256k1_ecdsa_signature_serialize_der(
     secp256k1_context_static, buffer.baseAddr, addr plength,
-    unsafeAddr sig.data)
+    addr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
   result = int(plength)
   if len(data) >= result:
@@ -404,7 +402,7 @@ func toDer*(sig: SkSignature, data: var openArray[byte]): int =
 
 func toDer*(sig: SkSignature): seq[byte] =
   ## Serialize Secp256k1 `signature` and return it.
-  result = newSeq[byte](72)
+  result = newSeqUninit[byte](SkDerSignatureMaxSize)
   let length = toDer(sig, result)
   result.setLen(length)
 
@@ -436,7 +434,7 @@ func toRaw*(sig: SkRecoverableSignature): array[SkRawRecoverableSignatureSize, b
   ## Converts recoverable signature to compact binary form
   var recid = cint(0)
   let res = secp256k1_ecdsa_recoverable_signature_serialize_compact(
-      secp256k1_context_static, result.baseAddr, addr recid, unsafeAddr sig.data)
+      secp256k1_context_static, result.baseAddr, addr recid, addr sig.data)
   doAssert res == 1, "Can't fail, per documentation"
 
   result[64] = byte(recid)
@@ -542,7 +540,7 @@ func signSchnorr*(key: SkSecretKey, msg: openArray[byte], randbytes: Opt[array[3
   let extraparams = secp256k1_schnorrsig_extraparams(magic: SECP256K1_SCHNORRSIG_EXTRAPARAMS_MAGIC, noncefp: nil, ndata: aux_rand32)
   signSchnorrImpl(
     secp256k1_schnorrsig_sign_custom(
-      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, unsafeAddr extraparams))
+      getContext(), data.baseAddr, msg.baseAddr, csize_t msg.len, addr kp, addr extraparams))
 
 template signSchnorrRngImpl(): untyped =
   var randbytes: array[32, byte]
@@ -577,15 +575,15 @@ proc signSchnorr*(key: SkSecretKey, msg: openArray[byte], rng: FoolproofRng): Sk
 
 func verify*(sig: SkSignature, msg: SkMessage, key: SkPublicKey): bool =
   secp256k1_ecdsa_verify(
-    getContext(), unsafeAddr sig.data, msg.baseAddr, unsafeAddr key.data) == 1
+    getContext(), addr sig.data, msg.baseAddr, addr key.data) == 1
 
 func verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkXOnlyPublicKey): bool =
   secp256k1_schnorrsig_verify(
-    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t SkMessageSize, unsafeAddr pubkey.data) == 1
+    getContext(), addr sig.data[0], msg.baseAddr, csize_t SkMessageSize, addr pubkey.data) == 1
 
 func verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkXOnlyPublicKey): bool =
   secp256k1_schnorrsig_verify(
-    getContext(), unsafeAddr sig.data[0], msg.baseAddr, csize_t msg.len, unsafeAddr pubkey.data) == 1
+    getContext(), addr sig.data[0], msg.baseAddr, csize_t msg.len, addr pubkey.data) == 1
 
 template verify*(sig: SkSchnorrSignature, msg: SkMessage, pubkey: SkPublicKey): bool =
   verify(sig, msg, pubkey.toXOnly)
@@ -596,7 +594,7 @@ template verify*(sig: SkSchnorrSignature, msg: openArray[byte], pubkey: SkPublic
 func recover*(sig: SkRecoverableSignature, msg: SkMessage): SkResult[SkPublicKey] =
   var data {.noinit.}: secp256k1_pubkey
   if secp256k1_ecdsa_recover(
-      getContext(), addr data, unsafeAddr sig.data, msg.baseAddr) != 1:
+      getContext(), addr data, addr sig.data, msg.baseAddr) != 1:
     return err("secp: cannot recover public key from signature")
 
   ok(SkPublicKey(data: data))
@@ -607,7 +605,7 @@ func ecdh*(seckey: SkSecretKey, pubkey: SkPublicKey): SkEcdhSecret =
   ## from failing.
   var secret {.noinit.}: array[SkEcdhSecretSize, byte]
   let res = secp256k1_ecdh(
-      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
+      secp256k1_context_static, secret.baseAddr, addr pubkey.data,
       seckey.data.baseAddr)
   doAssert res == 1, "cannot compute ECDH secret, keys invalid?"
 
@@ -620,7 +618,7 @@ func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
   ## although other inputs have been initialized properly.
   var secret {.noinit.}: array[N, byte]
   if secp256k1_ecdh(
-      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
+      secp256k1_context_static, secret.baseAddr, addr pubkey.data,
       seckey.data.baseAddr, hashfn, data) != 1:
     return err("cannot compute ECDH secret, keys invalid?")
 
@@ -633,7 +631,7 @@ func ecdh*[N: static[int]](seckey: SkSecretKey, pubkey: SkPublicKey,
     deprecated: "use `SkConstPtrByte` for `x32` and `y32`".} =
   var secret {.noinit.}: array[N, byte]
   if secp256k1_ecdh(
-      secp256k1_context_static, secret.baseAddr, unsafeAddr pubkey.data,
+      secp256k1_context_static, secret.baseAddr, addr pubkey.data,
       seckey.data.baseAddr, cast[SkEcdhHashFunc](hashfn), data) != 1:
     return err("cannot compute ECDH secret, keys invalid?")
 

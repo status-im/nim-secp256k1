@@ -1,6 +1,6 @@
 import
   ../secp256k1,
-  unittest,
+  std/unittest,
   stew/ptrops
 
 {.used.}
